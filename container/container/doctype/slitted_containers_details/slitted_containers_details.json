@@ -1,0 +1,101 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-07-06 08:40:18.902966",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "container",
+  "qty_in_the_container",
+  "warehouse",
+  "column_break_zf9sc",
+  "no_of_slitted_containers",
+  "slit_container",
+  "qty_for_each_container",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "container",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Container",
+   "options": "Container",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "container.primary_available_qty",
+   "fieldname": "qty_in_the_container",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty In The Container",
+   "precision": "4",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fetch_from": "container.warehouse",
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_zf9sc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "no_of_slitted_containers",
+   "fieldtype": "Int",
+   "label": "No Of Containers To Slit"
+  },
+  {
+   "fieldname": "slit_container",
+   "fieldtype": "Button",
+   "in_list_view": 1,
+   "label": "Slit Container"
+  },
+  {
+   "fieldname": "qty_for_each_container",
+   "fieldtype": "Small Text",
+   "label": "Qty for each Container",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Slitted Containers Details",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-08 22:56:46.365488",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Slitted Containers Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,50 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-06-16 12:57:27.026034",
+ "description": "Base Temperature",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "temperature",
+  "aging_rate",
+  "type"
+ ],
+ "fields": [
+  {
+   "fieldname": "temperature",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Temperature",
+   "options": "Storage Temperature",
+   "reqd": 1
+  },
+  {
+   "fieldname": "aging_rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Aging Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Type",
+   "options": "\nBase Temperature\nRoom Temperature"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-14 19:11:20.680672",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Temperature Characteristics",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

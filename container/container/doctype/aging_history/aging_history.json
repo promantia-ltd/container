@@ -1,0 +1,110 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2023-06-16 12:18:11.197217",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "datetime",
+  "warehouse",
+  "warehouse_temperature",
+  "creation_document_type",
+  "stock_txn_reference",
+  "column_break_r27uh",
+  "aging_rate",
+  "base_expiry_date",
+  "rt_expiry_date",
+  "shelf_life_in_days",
+  "section_break_zsphi",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Date/Time"
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "warehouse_temperature",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Warehouse Temperature ",
+   "reqd": 1
+  },
+  {
+   "default": "Stock Entry",
+   "fieldname": "creation_document_type",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Creation Document Type",
+   "options": "DocType"
+  },
+  {
+   "fieldname": "stock_txn_reference",
+   "fieldtype": "Dynamic Link",
+   "label": "Stock Txn Reference ",
+   "options": "creation_document_type"
+  },
+  {
+   "fieldname": "column_break_r27uh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "aging_rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Aging Rate",
+   "reqd": 1
+  },
+  {
+   "fieldname": "base_expiry_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Base Expiry Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rt_expiry_date",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "RT Expiry Date"
+  },
+  {
+   "fieldname": "shelf_life_in_days",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Shelf Life In Days"
+  },
+  {
+   "fieldname": "section_break_zsphi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Text Editor",
+   "label": "Description"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-08 22:59:44.121803",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Aging History",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

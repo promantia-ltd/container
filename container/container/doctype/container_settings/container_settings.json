@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-01-15 23:24:15.177381",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "details_tab",
+  "has_partially_reserved",
+  "over_allowance",
+  "column_break_vg2t",
+  "container_precision"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "has_partially_reserved",
+   "fieldtype": "Check",
+   "label": "Reserve Containers Partially"
+  },
+  {
+   "default": "4",
+   "description": "Container quantity calculations will be considered up to this precision.\n\n\n\n\n\n\n",
+   "fieldname": "container_precision",
+   "fieldtype": "Select",
+   "label": "Precision",
+   "options": "\n2\n3\n4\n5\n6\n7\n8\n9"
+  },
+  {
+   "fieldname": "column_break_vg2t",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "over_allowance",
+   "fieldtype": "Check",
+   "label": "Over Allowance"
+  },
+  {
+   "fieldname": "details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Details"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2024-01-18 23:41:57.059090",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Container Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
