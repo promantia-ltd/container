@@ -33,7 +33,7 @@ function set_slit_container_qty(frm,cdt,cdn){
 	let container_no_dict_total=[]
 	let containers=undefined
 	frappe.call({
-		method:"container.container.doctype.slit_containers.slit_containers.get_virtuval_naming_series",
+		method:"container.container.doctype.slit_containers.slit_containers.get_virtual_naming_series",
 			args:{
 				container:data.container,
 				no_of_containers:data.no_of_slitted_containers

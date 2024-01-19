@@ -133,7 +133,6 @@ def update_expiry_date(self):
                                 frappe.throw("Please mention the temperature in warehouse "+item.t_warehouse)
                             target_aging_rate=get_aging_rate(target_warehouse_temperature,item_doc)
                             try:
-                                container_doc.db_set("warehouse",target_warehouse)
                                 container_doc.db_set("temperature",target_warehouse_temperature.temperature)
                                 container_doc.db_set("base_expiry_date",base_expiry_date)
                                 container_doc.db_set("expiry_date",expiry_date)

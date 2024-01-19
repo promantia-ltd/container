@@ -89,7 +89,7 @@ class SlitContainers(Document):
 
 
 @frappe.whitelist()
-def get_virtuval_naming_series(container,no_of_containers):
+def get_virtual_naming_series(container,no_of_containers):
 	renamed_container = []
 	#mandatory to pass .# here 
 	container+="-.#"
@@ -174,24 +174,30 @@ def getseries(current,digits):
 	return ("%0" + str(digits) + "d") % current
 
 def create_sub_containers(self,item):
-    comment=""
-    containers=[]
-    qty_for_each_container=item.qty_for_each_container or "{}"
-    #convert str to dict
-    qty_for_each_container=ast.literal_eval(qty_for_each_container)
-    item_doc=frappe.get_doc("Item",item.item_code)
-    secondary_uom_cf=frappe.db.get_value("UOM Conversion Detail",{"parent":item_doc.item_code,"uom_type":"Secondary UOM"},"conversion_factor")
-    parent_container_doc=frappe.get_doc("Container",item.container)
-    #we should concat the same sting here as well 
+	comment=""
+	containers, renamed_container = [], []
+	qty_for_each_container=item.qty_for_each_container or "{}"
+	#convert str to dict
+	qty_for_each_container=ast.literal_eval(qty_for_each_container)
+	item_doc=frappe.get_doc("Item",item.item_code)
+	secondary_uom_cf=frappe.db.get_value("UOM Conversion Detail",{"parent":item_doc.item_code,"uom_type":"Secondary UOM"},"conversion_factor")
+	parent_container_doc=frappe.get_doc("Container",item.container)
+	#we should concat the same sting here as well 
 	#for sync of virtual and created conatiners
-    container_series=item.container+"-.#"
-    container_nos = get_auto_container_nos(container_series,item.no_of_slitted_containers)
-    container_list=container_nos.split("\n")
-    #validate the virual and created containers
-    validate_virtual_and_created_containers(qty_for_each_container,container_list)
-    try:
-        for container in range(item.no_of_slitted_containers):
-            container_doc =frappe.get_doc(dict(doctype = "Container",
+	container_series=item.container+"-.#"
+	container_nos = get_auto_container_nos(container_series,item.no_of_slitted_containers)
+	container_list = container_nos.split("\n")
+
+	#replace last "-" with "."
+	modified_list = [item.rsplit('-', 1)[0] + '.' + item.rsplit('-', 1)[1] if '-' in item else item for item in container_list]
+	container_list = [each.replace("-", "") for each in modified_list]
+
+	#validate the virual and created containers
+	validate_virtual_and_created_containers(qty_for_each_container,container_list)
+	
+	try:
+		for container in range(item.no_of_slitted_containers):
+			container_doc =frappe.get_doc(dict(doctype = "Container",
 				container_no=container_list[container],
 				item_code=item_doc.item_code,
 				warehouse=parent_container_doc.warehouse,
@@ -214,17 +220,18 @@ def create_sub_containers(self,item):
 				sub_container=1,
 				parent_ref=item.container
 				))
-	    	#copy the parent aging history of latest record
-            container_doc=copy_aging_history(self,item,container_doc)
-            containers.append(container_list[container])
-            comment=comment+"<a href='/app/container/"+container_list[container]+"'>"+container_list[container]+"</a><br>"
-            container_doc.save(ignore_permissions=True)
-            frappe.db.commit()
-        return comment,containers
-    except Exception as e:
-        frappe.db.rollback()
-        frappe.log_error("An error occurred: {}".format(str(e)))
-        frappe.throw("An error occurred while creating container,please contact the administrator.For more info check the Error Log")
+			#copy the parent aging history of latest record
+			container_doc=copy_aging_history(self,item,container_doc)
+			containers.append(container_list[container])
+			comment=comment+"<a href='/app/container/"+container_list[container]+"'>"+container_list[container]+"</a><br>"
+			container_doc.save(ignore_permissions=True)
+			frappe.db.commit()
+		return comment,containers
+	except Exception as e:
+		frappe.db.rollback()
+		frappe.log_error("An error occurred: {}".format(str(e)))
+		frappe.throw("An error occurred while creating container,please contact the administrator.For more info check the Error Log")
+
 def validate_virtual_and_created_containers(qty_for_each_container,container_list):
 	for container in container_list:
 		if container in qty_for_each_container.keys():
