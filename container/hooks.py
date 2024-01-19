@@ -18,6 +18,21 @@ _standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_cr
 # Includes in <head>
 # ------------------
 
+fixtures=[
+{
+    "dt": "Custom Field",
+	"filters":[
+        ["module","=", "Container"]
+    ]
+},
+{
+    "dt": 'Property Setter',
+	"filters": [
+        ["module","=", "Container"]
+    ]
+},
+]
+
 # include js, css files in header of desk.html
 # app_include_css = "/assets/container/css/container.css"
 app_include_js = "/assets/container/js/multi_select_dialog.js"
