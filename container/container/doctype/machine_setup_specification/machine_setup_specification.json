@@ -1,0 +1,47 @@
+{
+ "actions": [],
+ "autoname": "autoincrement",
+ "creation": "2023-02-18 12:59:44.936920",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "machine_setup_specification",
+  "value",
+  "actual_value"
+ ],
+ "fields": [
+  {
+   "fieldname": "machine_setup_specification",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Machine Setup Specification"
+  },
+  {
+   "fieldname": "value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Value"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "actual_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Actual Value"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-01-22 13:06:04.623873",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Machine Setup Specification",
+ "naming_rule": "Autoincrement",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
