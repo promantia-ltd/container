@@ -346,25 +346,26 @@ def set_containers_status(doc, method):
 
 def validate(doc,method):
 	try:
-		for each in doc.items:
-			each.custom_total_standard_rate = each.custom_standard_rate * each.qty
-			if each.custom_total_standard_rate:
-				each.custom_percentage_difference_to_actual_amount = ((each.basic_rate - each.custom_total_standard_rate)/each.custom_total_standard_rate)*100
-		# if doc.stock_entry_type=="Material Transfer for Manufacture" or doc.stock_entry_type=="Material Transfer":
-		# 	for item in doc.items:
-		# 		item_doc=frappe.get_doc("Item",item.item_code)
-		# 		if item.is_finished_item!=1 and item_doc.is_containerized==1:
-		# 			containers=item.containers
-		# 			if not containers:
-		# 				raise ContainersNotAssigned('Please set appropriate container for item at row '+str(item.idx))
-		# 			elif containers[-1] in [","]:
-		# 				#last comma should not consider
-		# 				containers=containers[:-1]
-		# 			containers=containers.split(",")
-		# 			for cont in containers:
-		# 				container_doc=frappe.get_doc("Container",cont)
-		# 				if container_doc.warehouse !=item.s_warehouse:
-		# 					frappe.throw('Source warehouse not matching with selected container warehouse at row '+str(item.idx)+',please check in container :'+"<a href='/app/container/"+cont+"'>"+cont+"</a><br>")
+	#This code is forstanderd rate fetching
+	# 	for each in doc.items:
+	# 		each.custom_total_standard_rate = each.custom_standard_rate * each.qty
+	# 		if each.custom_total_standard_rate:
+	# 			each.custom_percentage_difference_to_actual_amount = ((each.basic_rate - each.custom_total_standard_rate)/each.custom_total_standard_rate)*100
+		if doc.stock_entry_type=="Material Transfer for Manufacture" or doc.stock_entry_type=="Material Transfer":
+			for item in doc.items:
+				item_doc=frappe.get_doc("Item",item.item_code)
+				if item.is_finished_item!=1 and item_doc.is_containerized==1:
+					containers=item.containers
+					if not containers:
+						raise ContainersNotAssigned('Please set appropriate container for item at row '+str(item.idx))
+					elif containers[-1] in [","]:
+						#last comma should not consider
+						containers=containers[:-1]
+					containers=containers.split(",")
+					for cont in containers:
+						container_doc=frappe.get_doc("Container",cont)
+						if container_doc.warehouse !=item.s_warehouse:
+							frappe.throw('Source warehouse not matching with selected container warehouse at row '+str(item.idx)+',please check in container :'+"<a href='/app/container/"+cont+"'>"+cont+"</a><br>")
 
 	except ContainersNotAssigned as e:
 		frappe.throw(str(e))
