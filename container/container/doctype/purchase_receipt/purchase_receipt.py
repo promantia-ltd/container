@@ -240,5 +240,5 @@ def get_containers(no_of_containers,name):
             containers+=container_nos[container]+"\n"
         else:
             containers+=container_nos[container]
-    frappe.db.set_value("Purchase Receipt Item",name,"dummy_containers",containers)
+    # frappe.db.set_value("Purchase Receipt Item",name,"dummy_containers",containers)
     return container_nos
