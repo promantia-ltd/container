@@ -1,1 +1,18 @@
-[]
+[
+ {
+  "default_value": null,
+  "doc_type": "BOM Item",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "operation",
+  "is_system_generated": 0,
+  "modified": "2024-01-22 15:35:48.089980",
+  "module": "Container",
+  "name": "BOM Item-operation-reqd",
+  "property": "reqd",
+  "property_type": "Check",
+  "row_name": null,
+  "value": "1"
+ }
+]
