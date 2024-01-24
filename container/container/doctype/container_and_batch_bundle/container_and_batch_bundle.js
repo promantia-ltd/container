@@ -1,5 +1,9 @@
 // // Copyright (c) 2023, Mohan and contributors
 // // For license information, please see license.txt
+frappe.ui.form.on("Container and Batch Bundle", {
+    
+})
+
 
 // frappe.ui.form.on("Container and Batch Bundle", {
 // 	onload(frm) {

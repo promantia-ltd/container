@@ -531,35 +531,14 @@ def after_submit(doc,method):
 			container_no_doc.db_set('warehouse',container_no_doc.warehouse)
 			frappe.db.commit()
 	elif doc.stock_entry_type=="Material Transfer":
-		container_nos=[]
 		for item in doc.items:
-			for sn in get_serial_nos(item.containers):
-				container_nos.append(sn)
+			container_nos = get_serial_nos(item.containers)
 			for container_no in container_nos:
 				container_no_doc=frappe.get_doc(container_doctype,container_no)
 				container_no_doc.db_set('warehouse',item.t_warehouse)
 			frappe.db.commit()
 	#update the sle for all the stock entrys
 	update_sle(doc)
-
-@frappe.whitelist()
-def fetch_stock_transfer_records(workstation):
-	warehouse_stock=[]
-	warehouse_list=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':workstation},fields={'w_name'})
-	for warehouse in warehouse_list:
-		stock_list=frappe.db.get_all("Bin",filters={'warehouse':warehouse['w_name']},fields={'actual_qty','item_code'})
-		for stock in stock_list:
-			is_containerized=frappe.db.get_value('Item',{'item_code':stock['item_code']},'is_containerized')
-			if stock['actual_qty']>0 and is_containerized==1:
-				detail={"warehouse":warehouse['w_name'],"item_code":stock['item_code'],'actual_qty':stock['actual_qty']}
-				warehouse_stock.append(detail)
-	item_records=[]
-	for record in warehouse_stock:
-		container_no_list=frappe.db.get_all(container_doctype,filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'primary_available_qty':['>',1]},fields={'name','primary_available_qty','secondary_uom'})
-		for container_no in container_no_list:
-			item_record={'source_warehouse':record['warehouse'],'item_code':record['item_code'],'qty':container_no['primary_available_qty'],'uom':container_no['secondary_uom'],'container_no':container_no['name']}
-			item_records.append(item_record)
-	return item_records
 
 @frappe.whitelist()
 def change_containers(selected_containers,item):
@@ -881,6 +860,93 @@ def update_sle_for_raw(item):
 		containers=item.containers
 	sle.db_set("containers",containers)
 	frappe.db.commit()
+
+@frappe.whitelist()
+def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None,item_code=None,return_container=None):
+    warehouse_stock=[]
+    warehouse_list=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':workstation},fields={'w_name'})
+    for warehouse in warehouse_list:
+        stock_list=frappe.db.get_all("Bin",filters={'warehouse':warehouse['w_name']},fields={'actual_qty','item_code'})
+        for stock in stock_list:
+            is_containerized=frappe.db.get_value('Item',{'item_code':stock['item_code']},'is_containerized')
+            if stock['actual_qty']>0 and is_containerized==1:
+                primary_uom_conversion=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':stock['item_code'],'uom_type':"Primary UOM"},fields={'*'})
+                primary_qty=stock['actual_qty']/primary_uom_conversion[0].conversion_factor
+                detail={"warehouse":warehouse['w_name'],"item_code":stock['item_code'],'actual_qty':stock['actual_qty'],'primary_qty':primary_qty}
+                warehouse_stock.append(detail)
+    item_records=[]
+    for record in warehouse_stock:
+        if transfer_type=="Scrap Entry":
+            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'primary_available_qty':['>',0]},fields={'name','primary_available_qty','secondary_uom'})
+        else:
+            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'secondary_available_qty':['>',0.1]},fields={'name','primary_available_qty','secondary_uom'})
+
+        for container in container_list:
+            if not return_container or (return_container and return_container==container['name']):
+                if not return_warehouse or (return_warehouse and return_warehouse==record['warehouse']):
+                    if not item_code or (item_code and item_code==record['item_code']):
+                        stock_reserved_details=frappe.db.get_all("Stock Details",filters={'parent':container['name'],'reserved_qty':['>',1]},fields={'name'})
+                        if len(stock_reserved_details)==0:
+                            if container['primary_available_qty']>record['primary_qty']:
+                                qty=record['primary_qty']
+                            else:
+                                qty=container['primary_available_qty']
+                            item_record={'source_warehouse':record['warehouse'],'item_code':record['item_code'],'qty':qty,'uom':container['secondary_uom'],'container':container['name']}
+                            item_records.append(item_record)
+
+    return item_records
+
+@frappe.whitelist()
+def fetch_return_source_warehouse(doctype, txt, searchfield, start, page_len, filters):
+    if 'workstation' in filters:
+        parent_warehouse = filters['workstation']
+        return frappe.db.sql("""
+                        select w_name
+                        from `tabInput Sources`
+                        where parent = %s and parenttype="Workstation"
+                """, (parent_warehouse))
+
+    else:
+         frappe.throw('Please select workstation')
+
+
+@frappe.whitelist()
+def fetch_item_code(doctype, txt, searchfield, start, page_len, filters):
+	if 'workstation' in filters:
+		parent_warehouse = filters['workstation']
+		test= frappe.db.sql("""
+						select distinct it.item_code
+						from `tabInput Sources` i, `tabBin` b ,
+						`tabItem` it where b.warehouse=i.w_name
+						and i.parent=%s
+						and i.parenttype="Workstation"
+						and b.actual_qty>0 and it.item_code=b.item_code
+						and it.is_containerized=1
+				""", (parent_warehouse))
+		return test
+
+	else:
+		frappe.throw('Please select workstation')
+
+
+@frappe.whitelist()
+def fetch_container(doctype, txt, searchfield, start, page_len, filters):
+    if 'workstation' in filters:
+        parent_warehouse = filters['workstation']
+        return frappe.db.sql("""
+                        select distinct
+                        c.name from `tabInput Sources` i,
+                        `tabBin` b ,`tabItem` it, `tabContainer` c
+                        where b.warehouse=i.w_name
+                        and i.parent=%s
+                        and i.parenttype="Workstation"
+                        and b.actual_qty>0 and it.item_code=b.item_code
+                        and it.is_containerized=1 and c.item_code=b.item_code
+                        and c.warehouse=b.warehouse and c.primary_available_qty>1
+                """, (parent_warehouse))
+
+    else:
+         frappe.throw('Please select workstation')
 
 #it will check the three float digits are equal or not
 def are_floats_equal(value1, value2, tolerance=1e-3):

@@ -298,8 +298,102 @@ frappe.ui.form.on('Stock Entry', {
 			}
 		})
 		}
+	},
+	custom_material_return:function(frm,cdt,cdn){
+		if(frm.doc.custom_material_return==1){
+			frm.set_value('stock_entry_type','Material Transfer')
+			frm.set_value('custom_transfer_type','Material Return')
+		}
+		else{
+			frm.set_value('stock_entry_type','')
+			frm.set_value('custom_transfer_type','')
+		}
+	},
+	custom_scrap_entry:function(frm,cdt,cdn){
+		if(frm.doc.custom_scrap_entry==1){
+			frm.set_value('stock_entry_type','Material Transfer')
+			frm.set_value('custom_transfer_type','Scrap Entry')
+			frappe.db.get_value("Warehouse",{"custom_rejected_warehouse":1},["name"],(w)=>{
+				if(w.name){
+					frm.set_value('to_warehouse',w.name)
+				}
+			})
+		}
+		else{
+			frm.set_value('stock_entry_type','')
+			frm.set_value('custom_transfer_type','')
+		}
+	},
+	custom_workstation:function(frm,cdt,cdn){
+		frm.set_query("custom_return_source_warehouse", function() {
+			return {
+					query: "container.container.doctype.stock_entry.stock_entry.fetch_return_source_warehouse",
+					filters:{
+						"workstation":frm.doc.custom_workstation
+					}
+			};
+		});
+		frm.set_query("custom_return_item_code", function() {
+			return {
+					query: "container.container.doctype.stock_entry.stock_entry.fetch_item_code",
+					filters:{
+						"workstation":frm.doc.custom_workstation
+					}
+			};
+		});
+		frm.set_query("custom_return_container", function() {
+			return {
+					query: "container.container.doctype.stock_entry.stock_entry.fetch_container",
+					filters:{
+						"workstation":frm.doc.custom_workstation
+					}
+			};
+		});
+	},
+	custom_get_items_for_material_return:function(frm,cdt,cdn){
+		get_transfer_records(frm,cdt,cdn)
+	},
+	custom_get_items_for_scrap_transfer:function(frm,cdt,cdn){
+		get_transfer_records(frm,cdt,cdn)
 	}
 });
+
+function get_transfer_records(frm,cdt,cdn){
+	if(!frm.doc.custom_workstation){
+		frappe.throw('Please select a Worksttaion')
+	}
+	else{
+		frappe.call({
+			method:"container.container.doctype.stock_entry.stock_entry.fetch_stock_transfer_records",
+					args:{
+						workstation:frm.doc.custom_workstation,
+						return_warehouse:frm.doc.custom_return_source_warehouse,
+						item_code:frm.doc.custom_return_item_code,
+						return_container:frm.doc.custom_return_container,
+						transfer_type: frm.doc.custom_transfer_type
+					},
+					async:false,
+					callback: function(r){
+						cur_frm.clear_table("items");
+						for (let i=0;i<r.message.length;i++)
+						{
+							var child = cur_frm.add_child("items");
+							child.s_warehouse=r.message[i]['source_warehouse']
+							child.t_warehouse=frm.doc.to_warehouse
+							child.item_code=r.message[i]['item_code']
+							child.qty=r.message[i]['qty']
+							frappe.model.set_value('Stock Entry Detail', child.name, "uom", r.message[i]['uom']);
+							//child.uom=r.message[i]['uom']
+							child.containers=r.message[i]['container']
+							// child.serial_no_all=r.message[i]['serial_no']
+
+						}
+						cur_frm.refresh_field("items")
+					}
+			});
+	}
+}
+
 
 frappe.ui.form.on('Stock Entry Detail', {
 	item_code: function(frm, cdt, cdn){

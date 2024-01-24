@@ -2,7 +2,7 @@
 # # For license information, please see license.txt
 
 # import frappe
-# from frappe.model.document import Document
+from frappe.model.document import Document
 
 # import collections
 # import csv
@@ -46,7 +46,8 @@
 
 
 
-# class ContainerandBatchBundle(Document):
+class ContainerandBatchBundle(Document):
+    pass
 # 	def validate(self):
 # 		self.validate_serial_and_batch_no()
 # 		self.validate_duplicate_serial_and_batch_no()
