@@ -277,56 +277,71 @@ def set_containers_status(doc, method):
 	if doc.stock_entry_type=="Manufacture" and not doc.system_generated:
 		if doc.work_order:
 			for item in doc.items:
-				if item.is_finished_item!=1:
-					item_doc=frappe.get_doc("Item",item.item_code)
-					if item_doc.is_containerized==1:
-						secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
-						secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
-						primary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Primary UOM'},fields={'*'})
-						primary_uom_conversion=primary_uom_list[0]['conversion_factor']
-						container_no_list=[]
-						container_no=item.containers
-						if container_no:
-							reserved_qty=str(item.available_qty_use).split(",")
-							container_no_list=container_no.split(",")
-							list_length = len(container_no_list)
-							for i in range(list_length):
-								if container_no_list[i]!="" and reserved_qty[i]!="":
-									stock_qty=flt(reserved_qty[i], precision)*primary_uom_conversion
-									secondary_uom_qty=stock_qty*secondary_uom_conversion
-									container_doc=frappe.get_doc(container_doctype,container_no_list[i])
-									stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+				try:
+					if item.is_finished_item!=1:
+						item_doc=frappe.get_doc("Item",item.item_code)
+						if item_doc.is_containerized==1:
+							secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
+							if secondary_uom_list:
+								secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
+							else:
+								frappe.throw("Secondary UOM not found,Please specify secondary uom in item master")
 
-									try:
-										if stock_detail_doc:
-											stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
-											if has_partially_reserved:
-												reserved_total = flt(stock_detail_doc.reserved_qty, precision) - flt(reserved_qty[i], precision)
-												if reserved_total < 0:
-													reserved_total = 0
-												consumed_qty = stock_detail_doc.consumed_qty or 0 + flt(stock_detail_doc.reserved_qty, precision)
-												stock_detail_doc.db_set('consumed_qty', consumed_qty)
-												stock_detail_doc.db_set('reserved_qty',reserved_total)
-												container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
-				
-											else:
+							primary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Primary UOM'},fields={'*'})
+							if primary_uom_list:
+								primary_uom_conversion=primary_uom_list[0]['conversion_factor']
+							else:
+								frappe.throw("Primary UOM not found,Please specify primary uom in item master")
+
+							container_no_list=[]
+							container_no=item.containers
+							if container_no:
+								reserved_qty=str(item.available_qty_use).split(",")
+								container_no_list=container_no.split(",")
+								list_length = len(container_no_list)
+								for i in range(list_length):
+									if container_no_list[i]!="" and reserved_qty[i]!="":
+										stock_qty=flt(reserved_qty[i], precision)*primary_uom_conversion
+										secondary_uom_qty=stock_qty*secondary_uom_conversion
+										container_doc=frappe.get_doc(container_doctype,container_no_list[i])
+										stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+
+										try:
+											if stock_detail_doc:
 												stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
-												stock_detail_doc.db_set('consumed_qty',stock_detail_doc.consumed_qty  or 0 + flt(reserved_qty[i], precision))
-												container_doc.db_set("primary_available_qty",container_doc.primary_available_qty - flt(reserved_qty[i], precision))
-												container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty - secondary_uom_qty)
-												container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
+												if has_partially_reserved:
+													reserved_total = flt(stock_detail_doc.reserved_qty, precision) - flt(reserved_qty[i], precision)
+													if reserved_total < 0:
+														reserved_total = 0
+													consumed_qty = stock_detail_doc.consumed_qty or 0 + flt(stock_detail_doc.reserved_qty, precision)
+													stock_detail_doc.db_set('consumed_qty', consumed_qty)
+													stock_detail_doc.db_set('reserved_qty',reserved_total)
+													container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
+					
+												else:
+													stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
+													stock_detail_doc.db_set('consumed_qty',stock_detail_doc.consumed_qty  or 0 + flt(reserved_qty[i], precision))
+													container_doc.db_set("primary_available_qty",container_doc.primary_available_qty - flt(reserved_qty[i], precision))
+													container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty - secondary_uom_qty)
+													container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
 
-											# stock_detail_doc.save(ignore_permissions=True)
-											# container_doc.save(ignore_permissions=True)
-											frappe.db.commit()
-											a=10
-									
-									except Exception as e:
-										frappe.db.rollback()
-										frappe.log_error("An error occurred: {}".format(str(e)))
-										frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
-						else:
-							frappe.throw('Please set appropriate container for item at row '+str(item.idx))
+												# stock_detail_doc.save(ignore_permissions=True)
+												# container_doc.save(ignore_permissions=True)
+												frappe.db.commit()
+												a=10
+										
+										except Exception as e:
+											frappe.db.rollback()
+											frappe.log_error("An error occurred: {}".format(str(e)))
+											frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
+							else:
+								frappe.throw('Please set appropriate container for item at row '+str(item.idx))
+
+				except Exception as e:
+					frappe.db.rollback()
+					frappe.log_error("An error occurred: {}".format(str(e)))
+					frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
+
 
 	if doc.stock_entry_type == "Manufacture" and not doc.system_generated and not doc.work_order:
 		for item in doc.items:
@@ -493,13 +508,19 @@ def on_cancel(doc, method):
 			frappe.db.commit()
 
 def get_uom_conversion(item):
-    secondary_uom_list = frappe.db.get_all("UOM Conversion Detail",filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Secondary UOM'},fields={'*'})
-    secondary_uom_conversion = secondary_uom_list[0]['conversion_factor']
+	secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
+	if secondary_uom_list:
+		secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
+	else:
+		frappe.throw("Secondary UOM not found,Please specify secondary uom in item master")
 
-    primary_uom_list = frappe.db.get_all("UOM Conversion Detail",filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Primary UOM'},fields={'*'})
-    primary_uom_conversion = primary_uom_list[0]['conversion_factor']
-
-    return secondary_uom_conversion, primary_uom_conversion
+	primary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Primary UOM'},fields={'*'})
+	if primary_uom_list:
+		primary_uom_conversion=primary_uom_list[0]['conversion_factor']
+	else:
+		frappe.throw("Primary UOM not found,Please specify primary uom in item master")
+		
+	return secondary_uom_conversion, primary_uom_conversion
 
 
 @frappe.whitelist()

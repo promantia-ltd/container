@@ -1,7 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import (
-	flt
+	flt,cstr
 )
 import json
 
@@ -105,7 +105,7 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                         if remaining_qty < 0:
                             remaining_qty = 0
 
-                        reserve_qty_str = "  Reserved Qty : " + str(flt(sp_doc.primary_available_qty, precision))
+                        reserve_qty_str = "  Reserved Qty : " + cstr(flt(sp_doc.primary_available_qty, precision))
                         sp_doc.db_set('primary_available_qty', remaining_qty)
                         sp_doc.save(ignore_permissions=True)
 
@@ -123,7 +123,7 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                             
                             sp_doc.save(ignore_permissions=True)
 
-                    comment = comment + warehouse + " : <a href='/app/container/" + container + "'>" + container + "</a>" + str(reserve_qty_str) + "<br>" 
+                    comment = comment + warehouse + " : <a href='/app/container/" + container + "'>" + container + "</a>" + cstr(reserve_qty_str) + "<br>" 
                     frappe.db.commit()
 
                 elif sp_doc.primary_available_qty >= required_qty:
@@ -140,7 +140,7 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                                 'consumed_qty': 0
                             })
 
-                        reserve_qty_str = "  Reserved Qty : " + str(flt(required_qty), precision)
+                        reserve_qty_str = "  Reserved Qty : " + cstr(flt(required_qty, precision))
                         remaining_qty = flt(flt(sp_doc.primary_available_qty, precision) - required_qty, precision)
                         if remaining_qty < 0:
                             remaining_qty = 0
@@ -160,7 +160,7 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                             })
                             sp_doc.save(ignore_permissions=True)
 
-                    comment = comment + warehouse + " : <a href='/app/container/" + container + "'>" + container + "</a>" + str(reserve_qty_str) + "<br>" 
+                    comment = comment + warehouse + " : <a href='/app/container/" + container + "'>" + container + "</a>" + cstr(reserve_qty_str) + "<br>" 
                     frappe.db.commit()
                     reserved = True
                     return comment, reserved, container_no_set

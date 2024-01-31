@@ -396,30 +396,30 @@ function get_transfer_records(frm,cdt,cdn){
 
 
 frappe.ui.form.on('Stock Entry Detail', {
-	item_code: function(frm, cdt, cdn){
-		var row = locals[cdt][cdn];
-        frappe.utils.sleep(500).then(() => {
-            frappe.call({
-                args:{
-                    doc:frm.doc,
-                    item_code: row.item_code,
-                    uom: row.uom
-                },
-                method:"container.container.doctype.purchase_order.purchase_order.update_standard_rates",
-                async:false,
-                callback: function(r){
-                    if(r.message){
-                        row.custom_standard_rate = r.message['rate']
-                        cur_frm.refresh_field("rate");
-                    }
-                    else {
-                        row.custom_standard_rate = 0.0
-                        cur_frm.refresh_field("rate");
-                    }
-                }
-            });
-        });
-    },
+	// item_code: function(frm, cdt, cdn){
+	// 	var row = locals[cdt][cdn];
+    //     frappe.utils.sleep(500).then(() => {
+    //         frappe.call({
+    //             args:{
+    //                 doc:frm.doc,
+    //                 item_code: row.item_code,
+    //                 uom: row.uom
+    //             },
+    //             method:"container.container.doctype.purchase_order.purchase_order.update_standard_rates",
+    //             async:false,
+    //             callback: function(r){
+    //                 if(r.message){
+    //                     row.custom_standard_rate = r.message['rate']
+    //                     cur_frm.refresh_field("rate");
+    //                 }
+    //                 else {
+    //                     row.custom_standard_rate = 0.0
+    //                     cur_frm.refresh_field("rate");
+    //                 }
+    //             }
+    //         });
+    //     });
+    // },
 	change_containers:function(frm,cdt,cdn){
 		if (frm.doc.docstatus ==0){
 		let data=locals[cdt][cdn];
