@@ -32,28 +32,49 @@ else:
 
 @frappe.whitelist()
 def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, work_order):
-    container_used = json.loads(container_used)
-    used = [each for val in container_used for each in val] if container_used else []
+	container_used = json.loads(container_used)
+	used = [each for val in container_used for each in val] if container_used else []
 
-    container_no, primary_available_qty, primary_available_qty_used = [], [], []
-    qty_check = 0
-    remaining_qty = ""
-    item_doc = frappe.get_doc("Item", item)
+	container_no, primary_available_qty, primary_available_qty_used = [], [], []
+	qty_check = 0
+	remaining_qty = ""
+	item_doc = frappe.get_doc("Item", item)
 
-    if item_doc.is_containerized == 1:
-        uom_list = frappe.db.get_all("UOM Conversion Detail", filters={'parenttype': 'Item', 'parent': item, 'uom': uom}, fields={'*'})
-        stock_qty = flt((flt(qty, precision) / flt(uom_list[0].conversion_factor)), precision)
-        required_qty = stock_qty
-        query = get_containers(item, warehouse)
-        qty_check = sum(value.primary_available_qty for value in query)
+	if item_doc.is_containerized == 1:
+		uom_list = frappe.db.get_all("UOM Conversion Detail", filters={'parenttype': 'Item', 'parent': item, 'uom': uom}, fields={'*'})
+		stock_qty = flt(qty) / flt(uom_list[0].conversion_factor)
+		required_qty = stock_qty
+		query = get_containers(item, warehouse)
+		
+		#check qty with the container primary qty
+		get_uom_c_factor = get_conversion_factor(item, uom)
 
-        if required_qty > qty_check:
-            frappe.throw(f"Stock qty is exceeded for Item {item} in warehouse {warehouse}. Expected: {stock_qty}, available is less than that")
+		if not get_uom_c_factor:
+			frappe.throw("Conversion factor did not find for the uom " + uom)
 
-        minimal_expiry_containers = get_minimal_expiry_containers(item, query)
-        container_no, primary_available_qty, primary_available_qty_used, remaining_qty = container_pick(query,required_qty, used,minimal_expiry_containers)
+		primary_uom_converted_qty = stock_qty * get_uom_c_factor
 
-    return container_no, primary_available_qty, remaining_qty, primary_available_qty_used
+		qty_check = sum(value.primary_available_qty for value in query)
+
+		if primary_uom_converted_qty > qty_check:
+			frappe.throw(f"Stock qty is exceeded for Item {item} in warehouse {warehouse}. Expected: {stock_qty}, available is less than that")
+
+		minimal_expiry_containers = get_minimal_expiry_containers(item, query)
+		container_no, primary_available_qty, primary_available_qty_used, remaining_qty = container_pick(query,primary_uom_converted_qty, used,minimal_expiry_containers)
+
+		avilable_qty_in_bom_uom = []
+
+		#conver the available qty to the required uom qty based on bom
+		if required_qty != primary_uom_converted_qty:
+			for q in primary_available_qty:
+				avilable_qty_in_bom_uom.append(q/get_uom_c_factor)
+		else:
+			avilable_qty_in_bom_uom = primary_available_qty
+		
+	return container_no, primary_available_qty, remaining_qty, primary_available_qty_used, avilable_qty_in_bom_uom
+
+def get_conversion_factor(item, uom):
+	return frappe.db.get_value("UOM Conversion Detail", {'parenttype':'Item','parent':item,'uom':uom}, "conversion_factor")
 
 
 def get_containers(item, warehouse):
@@ -702,6 +723,7 @@ def change_container_qty(data,item_name):
 def container_pick(query,required_qty,used,minimal_expiry_containers):
 	container_no,primary_available_qty,primary_available_qty_used = [],[],[]
 	remaining_qty =" "
+	
 	for data in query:
 		if data.name not in used and data.name not in minimal_expiry_containers:
 			available_qty = flt(data.primary_available_qty,4)
@@ -898,9 +920,9 @@ def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None
     item_records=[]
     for record in warehouse_stock:
         if transfer_type=="Scrap Entry":
-            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'primary_available_qty':['>',0]},fields={'name','primary_available_qty','secondary_uom'})
+            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'primary_available_qty':['>',0]},fields={'name','primary_available_qty','primary_uom'})
         else:
-            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'secondary_available_qty':['>',0.1]},fields={'name','primary_available_qty','secondary_uom'})
+            container_list=frappe.db.get_all("Container",filters={'warehouse':record['warehouse'],'item_code':record['item_code'],'secondary_available_qty':['>',0.1]},fields={'name','primary_available_qty','primary_uom'})
 
         for container in container_list:
             if not return_container or (return_container and return_container==container['name']):
@@ -912,7 +934,7 @@ def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None
                                 qty=record['primary_qty']
                             else:
                                 qty=container['primary_available_qty']
-                            item_record={'source_warehouse':record['warehouse'],'item_code':record['item_code'],'qty':qty,'uom':container['secondary_uom'],'container':container['name']}
+                            item_record={'source_warehouse':record['warehouse'],'item_code':record['item_code'],'qty':qty,'uom':container['primary_uom'],'container':container['name']}
                             item_records.append(item_record)
 
     return item_records

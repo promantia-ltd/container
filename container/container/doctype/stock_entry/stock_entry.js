@@ -57,7 +57,8 @@ frappe.ui.form.on('Stock Entry', {
 									child.required_qty=(detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty/detail.no_of_inputs;
 									child.qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
 									child.basic_rate=detail.rate;
-									child.uom=detail.stock_uom;
+									child.uom=detail.uom;
+									child.stock_uom=detail.stock_uom;
 									child.conversion_factor=detail.conversion_factor;
 									child.transfer_qty=detail.stock_qty;
 									// let containers=frm.add_child("information_of_containers_assigned");
@@ -77,7 +78,7 @@ frappe.ui.form.on('Stock Entry', {
 										container_no=container_no+String(r.message[0][i])+","
 										available_qty=available_qty+String(r.message[1][i])+","
 										available_qty_use=available_qty_use+String(r.message[3][i])+","
-										qty=qty+r.message[1][i]
+										qty=qty+r.message[4][i]
 									}
 									child.containers=container_no
 									// containers.containers=container_no
@@ -172,7 +173,8 @@ frappe.ui.form.on('Stock Entry', {
 										child.qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.stock_uom;
-										child.conversion_factor=detail.conversion_factor;
+										child.stock_uom=detail.stock_uom;
+										child.conversion_factor=1;
 										child.transfer_qty=detail.stock_qty;
 										var uom_conversion_factor=1
 										frappe.model.with_doc("Item", child.item_code, function() {
@@ -224,6 +226,7 @@ frappe.ui.form.on('Stock Entry', {
 							fin_child.qty=finished_item.qty;
 							fin_child.basic_rate=finished_item.basic_rate;
 							fin_child.uom=finished_item.uom;
+							fin_child.stock_uom=finished_item.uom;
 							fin_child.conversion_factor=finished_item.conversion_factor;
 							fin_child.transfer_qty=finished_item.transfer_qty;
 						})
@@ -383,10 +386,10 @@ function get_transfer_records(frm,cdt,cdn){
 							child.item_code=r.message[i]['item_code']
 							child.qty=r.message[i]['qty']
 							frappe.model.set_value('Stock Entry Detail', child.name, "uom", r.message[i]['uom']);
+							frappe.model.set_value('Stock Entry Detail', child.name, "stock_uom", r.message[i]['uom']);
+
 							//child.uom=r.message[i]['uom']
 							child.containers=r.message[i]['container']
-							// child.serial_no_all=r.message[i]['serial_no']
-
 						}
 						cur_frm.refresh_field("items")
 					}
