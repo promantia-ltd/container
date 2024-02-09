@@ -1124,7 +1124,7 @@ def fetch_item_code(doctype, txt, searchfield, start, page_len, filters):
 def fetch_container(doctype, txt, searchfield, start, page_len, filters):
 	if 'workstation' in filters:
 		parent_warehouse = filters['workstation']
-		a= frappe.db.sql("""
+		return frappe.db.sql("""
 						select distinct
 						c.name from `tabInput Sources` i,
 						`tabBin` b ,`tabItem` it, `tabContainer` c
@@ -1133,9 +1133,8 @@ def fetch_container(doctype, txt, searchfield, start, page_len, filters):
 						and i.parenttype="Workstation"
 						and b.actual_qty>0 and it.item_code=b.item_code
 						and it.is_containerized=1 and c.item_code=b.item_code
-						and c.warehouse=b.warehouse and c.primary_available_qty>1
+						and c.warehouse=b.warehouse and c.primary_available_qty>0
 				""", (parent_warehouse))
-		return a
 
 	else:
 			frappe.throw('Please select workstation')
