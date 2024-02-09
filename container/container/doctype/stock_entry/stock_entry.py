@@ -297,22 +297,20 @@ def before_submit(doc, method):
 from frappe import throw
 
 def set_containers_status(doc, method):
-	item_with_stock = []
 	comment = "<b>Stock Reserved Successfully</b><br>Assigned Containers:<br>"
 	reserve_qty_str = ""
 
 
 	if doc.stock_entry_type == "Material Transfer for Manufacture" and doc.once_reserved != 1:
 		for item in doc.items:
-			item_data = [item.item_code, item.t_warehouse]
 			item_doc = frappe.get_doc("Item", item.item_code)
 			qty_assigned = item.available_qty_use.split(",")
 
 			if item_doc.is_containerized == 1:
 				container_nos = get_serial_nos(item.containers)
 
-				for index, sno in enumerate(container_nos):
-					container_doc = frappe.get_doc(container_doctype, sno)
+				for index, cno in enumerate(container_nos):
+					container_doc = frappe.get_doc(container_doctype, cno)
 					stock_detail_doc = frappe.db.get_value('Stock Details', {'parent': container_doc.name, 'work_order': doc.work_order}, 'name')
 
 					container_doc.db_set('warehouse', item.t_warehouse)
@@ -355,9 +353,60 @@ def set_containers_status(doc, method):
 
 					comment += f"{item.t_warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a>" + str(reserve_qty_str) + "<br>"
 					frappe.db.commit()
-					item_with_stock.append(item_data)
 
 				doc.once_reserved = 1
+
+		for item in doc.reserved_items:
+			item_doc = frappe.get_doc("Item", item.item_code)
+			qty_assigned = item.available_qty_use.split(",")
+
+			if item_doc.is_containerized == 1:
+				container_nos = get_serial_nos(item.containers)
+
+				for index, cno in enumerate(container_nos):
+					container_doc = frappe.get_doc(container_doctype, cno)
+					stock_detail_doc = frappe.db.get_value('Stock Details', {'parent': container_doc.name, 'work_order': doc.work_order}, 'name')
+
+					container_doc.db_set('warehouse', item.t_warehouse)
+					# container_doc.save(ignore_permissions=True)
+
+					try:
+						if stock_detail_doc:
+							stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_doc)
+							if has_partially_reserved:
+								reserved_qty = stock_detail_doc.reserved_qty or 0 + flt(qty_assigned[index], precision)
+								stock_detail_doc.db_set('reserved_qty', reserved_qty)
+								container_doc.db_set("primary_available_qty", container_doc.primary_available_qty - reserved_qty)
+								reserve_qty_str = "  Reserved Qty : " + str(flt(qty_assigned[index], precision))
+
+							else:
+								stock_detail_doc.db_set('is_reserved', 1)
+						else:
+							container_doc.append('stock_details', {
+								'work_order': doc.work_order,
+								'stock_entry': doc.name,
+								'warehouse': item.t_warehouse,
+								'consumed_qty': 0
+							})
+
+							if has_partially_reserved:
+								reserved_qty = flt(qty_assigned[index], precision)
+								container_doc.stock_details[-1].reserved_qty = reserved_qty
+								container_doc.db_set("primary_available_qty", container_doc.primary_available_qty - reserved_qty)
+								reserve_qty_str = "  Reserved Qty : " + str(reserved_qty)
+
+							else:
+								container_doc.stock_details[-1].is_reserved = 1
+
+						container_doc.save(ignore_permissions=True)
+
+					except Exception as e:
+						frappe.db.rollback()
+						frappe.log_error("An error occurred: {}".format(str(e)))
+						frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
+
+					comment += f"{item.t_warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a>" + str(reserve_qty_str) + "<br>"
+					frappe.db.commit()
 
 		doc.add_comment('Comment', comment)
 
@@ -489,8 +538,8 @@ def on_cancel(doc, method):
 				if item_doc.is_containerized == 1:
 					container_nos = get_serial_nos(item.containers)
 
-					for index,sno in enumerate(container_nos):
-						container_doc = get_doc(container_doctype, sno)
+					for index,cno in enumerate(container_nos):
+						container_doc = get_doc(container_doctype, cno)
 						stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
 						
 						try:
@@ -525,12 +574,64 @@ def on_cancel(doc, method):
 							container_doc.db_set('warehouse', item.s_warehouse)
 							container_doc.save(ignore_permissions=True)
 							frappe.db.commit()
-							comment += f"{item.t_warehouse} : {sno}<br>"
+							comment += f"{item.t_warehouse} : {cno}<br>"
 
 						except Exception as e:
 							frappe.db.rollback()
 							frappe.log_error("An error occurred: {}".format(str(e)))
 							frappe.throw("An error occurred, while canceling stock entry .For more info check the Error Log")
+
+		for item in doc.reserved_items:
+			if item.containers:
+				item_doc = get_doc("Item", item.item_code)
+				qty_assigned = item.available_qty_use.split(",")
+
+				if item_doc.is_containerized == 1:
+					container_nos = get_serial_nos(item.containers)
+
+					for index,cno in enumerate(container_nos):
+						container_doc = get_doc(container_doctype, cno)
+						stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+						
+						try:
+							if stock_detail_doc:
+								stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
+
+								if has_partially_reserved:
+									#check if any other workorder is received in this serial no
+									other_reserved_stock_details=frappe.db.get_all("Stock Details",filters={'parent':container_doc.name,'reserved_qty':['>',1]},fields={'*'})
+
+									reserved_qty = flt(stock_detail_doc.reserved_qty, precision) - flt(qty_assigned[index], precision)
+
+									if reserved_qty < 0:
+										reserved_qty = 0
+
+									 #if still some partial qty is reserved or some workorder is reserved do not allow cancellation as caused stock issue
+									if reserved_qty > 1 or len(other_reserved_stock_details) > 1:
+										frappe.throw('This container is reserved for some other Work Order. Either unreserve or cancel the other Work Order')
+										frappe.db.rollback()
+
+									primary_available_qty = container_doc.primary_available_qty + flt(stock_detail_doc.reserved_qty, precision)
+									container_doc.db_set('primary_available_qty', primary_available_qty)
+									stock_detail_doc.db_set('reserved_qty',reserved_qty)
+									
+								else:     
+									stock_detail_doc.db_set('is_reserved', 0)
+
+							if not stock_detail_doc.is_reserved  and stock_detail_doc.reserved_qty == 0 and stock_detail_doc.consumed_qty == 0:
+								delete_doc("Stock Details", stock_detail_doc.name)
+								frappe.db.commit()
+
+							container_doc.db_set('warehouse', item.s_warehouse)
+							container_doc.save(ignore_permissions=True)
+							frappe.db.commit()
+							comment += f"{item.t_warehouse} : {cno}<br>"
+
+						except Exception as e:
+							frappe.db.rollback()
+							frappe.log_error("An error occurred: {}".format(str(e)))
+							frappe.throw("An error occurred, while canceling stock entry .For more info check the Error Log")
+
 
 		doc.add_comment('Comment', comment)
 
@@ -1021,22 +1122,23 @@ def fetch_item_code(doctype, txt, searchfield, start, page_len, filters):
 
 @frappe.whitelist()
 def fetch_container(doctype, txt, searchfield, start, page_len, filters):
-    if 'workstation' in filters:
-        parent_warehouse = filters['workstation']
-        return frappe.db.sql("""
-                        select distinct
-                        c.name from `tabInput Sources` i,
-                        `tabBin` b ,`tabItem` it, `tabContainer` c
-                        where b.warehouse=i.w_name
-                        and i.parent=%s
-                        and i.parenttype="Workstation"
-                        and b.actual_qty>0 and it.item_code=b.item_code
-                        and it.is_containerized=1 and c.item_code=b.item_code
-                        and c.warehouse=b.warehouse and c.primary_available_qty>1
-                """, (parent_warehouse))
+	if 'workstation' in filters:
+		parent_warehouse = filters['workstation']
+		a= frappe.db.sql("""
+						select distinct
+						c.name from `tabInput Sources` i,
+						`tabBin` b ,`tabItem` it, `tabContainer` c
+						where b.warehouse=i.w_name
+						and i.parent=%s
+						and i.parenttype="Workstation"
+						and b.actual_qty>0 and it.item_code=b.item_code
+						and it.is_containerized=1 and c.item_code=b.item_code
+						and c.warehouse=b.warehouse and c.primary_available_qty>1
+				""", (parent_warehouse))
+		return a
 
-    else:
-         frappe.throw('Please select workstation')
+	else:
+			frappe.throw('Please select workstation')
 
 #it will check the three float digits are equal or not
 def are_floats_equal(value1, value2, tolerance=1e-3):

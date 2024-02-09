@@ -1,13 +1,13 @@
 frappe.ui.form.on('Stock Entry', {
     onload:function(frm){
         let finished_item=""
+		if(frm.doc.__islocal==1){
 		frappe.db.get_value("Work Order",frm.doc.work_order,["source_warehouse","wip_warehouse"],(w)=>{
 			if(frm.doc.docstatus==0){
 				frm.set_value("from_warehouse",w.source_warehouse)
 			}
 		if(frm.doc.stock_entry_type=="Material Transfer for Manufacture"){
 		const container_used=[];
-		if(frm.doc.__islocal==1){
 			if(frm.doc.bom_no){
 				frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
 					frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
@@ -141,8 +141,9 @@ frappe.ui.form.on('Stock Entry', {
 										child.remaining_qty=r.message.target.remaining_qty
 										child.available_qty_use=available_qty_use
 									}
-									else if(r.message.source && r.message.complete_reserved_at_target == 0) {
-										container_used.push(r.message.target.container_no)
+									// this completly reserved at source
+									else if(r.message.source && r.message.complete_reserved_at_target == 0 && !(r.message.target)) {
+										container_used.push(r.message.source.container_no)
 										let child=frm.add_child("items");
 										child.s_warehouse=r.message.target.s_warehouse;
 										child.t_warehouse=r.message.target.t_warehouse;
@@ -194,8 +195,8 @@ frappe.ui.form.on('Stock Entry', {
 				})
 			}
 		}
-		}
 		})
+		}
 		frappe.db.get_value("Work Order",frm.doc.work_order,["source_warehouse","wip_warehouse"],(w)=>{
 		if(frm.doc.stock_entry_type=="Manufacture"){
 			var container_used=[];
