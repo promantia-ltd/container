@@ -49,6 +49,7 @@ frappe.ui.form.on('Stock Entry', {
 								callback: function(r){
 									if(r.message.target || r.message.source){
 										if (r.message.target && r.message.source && r.message.partially_reserved){
+											// this partially reserved target
 											if (r.message.target.container_no){
 												container_used.push(r.message.target.container_no)
 												let child=frm.add_child("reserved_items");
@@ -78,6 +79,8 @@ frappe.ui.form.on('Stock Entry', {
 												child.remaining_qty=r.message.target.remaining_qty
 												child.available_qty_use=available_qty_use
 											}
+
+											// this partially reserved source
 											if (r.message.source.container_no){
 												container_used.push(r.message.source.container_no)
 												let child=frm.add_child("items");
@@ -145,8 +148,8 @@ frappe.ui.form.on('Stock Entry', {
 									else if(r.message.source && r.message.complete_reserved_at_target == 0 && !(r.message.target)) {
 										container_used.push(r.message.source.container_no)
 										let child=frm.add_child("items");
-										child.s_warehouse=r.message.target.s_warehouse;
-										child.t_warehouse=r.message.target.t_warehouse;
+										child.s_warehouse=r.message.source.s_warehouse;
+										child.t_warehouse=r.message.source.t_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
 										child.required_qty=(detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty/detail.no_of_inputs;
