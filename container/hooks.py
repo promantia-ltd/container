@@ -56,6 +56,7 @@ doctype_js = {
     "Work Order" : "container/doctype/work_order/work_order.js",
     "Stock Entry":"container/doctype/stock_entry/stock_entry.js",
     "Purchase Receipt":"container/doctype/purchase_receipt/purchase_receipt.js",
+    "Stock Reconciliation":"container/doctype/stock_reconciliation/stock_reconciliation.js"
     }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -168,6 +169,10 @@ doc_events = {
     "on_cancel":"container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
     # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },
+    
+    "Stock Reconciliation":{
+		"on_submit" : "container.container.doctype.stock_reconciliation.stock_reconciliation.on_submit"
+	}
 }
 
 # Scheduled Tasks
