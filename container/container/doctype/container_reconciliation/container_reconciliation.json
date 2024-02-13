@@ -1,0 +1,159 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2024-02-12 10:55:21.143178",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "item_code",
+  "reconciliation_completed",
+  "column_break_5nmif",
+  "company",
+  "warehouse",
+  "section_break_ax3he",
+  "items",
+  "new_container_nos",
+  "qty_reconciliation_section",
+  "current_qty",
+  "column_break_qt3zi",
+  "qty_after_reconciliation",
+  "secondary_conversion_factor",
+  "tertiary_conversion_factor",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "\nSR-RECO-.####"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "reconciliation_completed",
+   "fieldtype": "Check",
+   "label": "Reconciliation Completed",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_5nmif",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warehouse",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_ax3he",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Container Reconciliation Items"
+  },
+  {
+   "fieldname": "qty_reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "Qty Reconciliation"
+  },
+  {
+   "fieldname": "current_qty",
+   "fieldtype": "Float",
+   "label": "Current Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_qt3zi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "qty_after_reconciliation",
+   "fieldtype": "Float",
+   "label": "Qty After Reconciliation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "secondary_conversion_factor",
+   "fieldtype": "Float",
+   "hidden": 1,
+   "label": "Secondary Conversion Factor",
+   "precision": "8"
+  },
+  {
+   "fieldname": "tertiary_conversion_factor",
+   "fieldtype": "Float",
+   "hidden": 1,
+   "label": "Tertiary Conversion Factor",
+   "precision": "8"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Container Reconciliation",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "new_container_nos",
+   "fieldtype": "Table",
+   "label": "New Container Nos",
+   "options": "Container Reconciliation Items Add"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2024-02-12 12:43:48.277308",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Container Reconciliation",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
