@@ -304,9 +304,12 @@ def set_containers_status(doc, method):
 	if doc.stock_entry_type == "Material Transfer for Manufacture" and doc.once_reserved != 1:
 		for item in doc.items:
 			item_doc = frappe.get_doc("Item", item.item_code)
-			qty_assigned = item.available_qty_use.split(",")
 
 			if item_doc.is_containerized == 1:
+				try:
+					qty_assigned = item.available_qty_use.split(",")
+				except Exception as e:
+					frappe.throw("Not properly updated available qty use for the item " + item.item_code +" at row " + item.idx)
 				container_nos = get_serial_nos(item.containers)
 
 				for index, cno in enumerate(container_nos):
@@ -358,9 +361,12 @@ def set_containers_status(doc, method):
 
 		for item in doc.reserved_items:
 			item_doc = frappe.get_doc("Item", item.item_code)
-			qty_assigned = item.available_qty_use.split(",")
 
 			if item_doc.is_containerized == 1:
+				try:
+					qty_assigned = item.available_qty_use.split(",")
+				except Exception as e:
+					frappe.throw("Not properly updated available qty use for the item " + item.item_code +" at row " + item.idx)
 				container_nos = get_serial_nos(item.containers)
 
 				for index, cno in enumerate(container_nos):
@@ -533,9 +539,13 @@ def on_cancel(doc, method):
 		for item in doc.items:
 			if item.containers:
 				item_doc = get_doc("Item", item.item_code)
-				qty_assigned = item.available_qty_use.split(",")
+				
 
 				if item_doc.is_containerized == 1:
+					try:
+						qty_assigned = item.available_qty_use.split(",")
+					except Exception as e:
+						frappe.throw("Not properly updated available qty use for the item " + item.item_code +" at row " + item.idx)
 					container_nos = get_serial_nos(item.containers)
 
 					for index,cno in enumerate(container_nos):
@@ -584,9 +594,12 @@ def on_cancel(doc, method):
 		for item in doc.reserved_items:
 			if item.containers:
 				item_doc = get_doc("Item", item.item_code)
-				qty_assigned = item.available_qty_use.split(",")
 
 				if item_doc.is_containerized == 1:
+					try:
+						qty_assigned = item.available_qty_use.split(",")
+					except Exception as e:
+						frappe.throw("Not properly updated available qty use for the reserved item " + item.item_code +" at row " + item.idx)
 					container_nos = get_serial_nos(item.containers)
 
 					for index,cno in enumerate(container_nos):
@@ -641,31 +654,38 @@ def on_cancel(doc, method):
 				container_no_list = get_serial_nos(item.containers)
 				secondary_uom_conversion, primary_uom_conversion = get_uom_conversion(item)
 
-				reserved_qty=item.available_qty_use.split(",")
+				item_doc = get_doc("Item", item.item_code)
 
-				for i, container_no in enumerate(container_no_list):
-					if container_no and item.available_qty_use[i]:
-						stock_qty = flt(item.available_qty_use[i], precision) * primary_uom_conversion
-						secondary_uom_qty = stock_qty * secondary_uom_conversion
+				if item_doc.is_containerized == 1:
+					try:
+						reserved_qty=item.available_qty_use.split(",")
+					except Exception as e:
+						frappe.throw("Not properly updated available qty use for the reserved item " + item.item_code +" at row " + item.idx)
 
-						container_doc = get_doc(container_doctype, container_no)
-						stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
 
-						if stock_detail_doc:
-							stock_detail_doc = get_doc("Stock Details", stock_detail_doc)
-							
-							#it will back to reserved state
-							if has_partially_reserved:
-								stock_detail_doc.db_set('reserved_qty',flt(stock_detail_doc.reserved_qty, precision) + flt(reserved_qty[i], precision))
-								consumed_qty = stock_detail_doc.consumed_qty - flt(reserved_qty[i], precision)
-								if consumed_qty < 0:
-									consumed_qty = 0
-								stock_detail_doc.db_set('consumed_qty', consumed_qty)
-								container_doc.add_comment('Comment', f"Released qty: {flt(flt(reserved_qty[i]), precision)} for transaction with Stock Entry: {doc.name}")
-								frappe.db.commit()
-							else:
-								#for ntpt manufacturing cancle entry is on hold
-								pass
+					for i, container_no in enumerate(container_no_list):
+						if container_no and item.available_qty_use[i]:
+							stock_qty = flt(item.available_qty_use[i], precision) * primary_uom_conversion
+							secondary_uom_qty = stock_qty * secondary_uom_conversion
+
+							container_doc = get_doc(container_doctype, container_no)
+							stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+
+							if stock_detail_doc:
+								stock_detail_doc = get_doc("Stock Details", stock_detail_doc)
+								
+								#it will back to reserved state
+								if has_partially_reserved:
+									stock_detail_doc.db_set('reserved_qty',flt(stock_detail_doc.reserved_qty, precision) + flt(reserved_qty[i], precision))
+									consumed_qty = stock_detail_doc.consumed_qty - flt(reserved_qty[i], precision)
+									if consumed_qty < 0:
+										consumed_qty = 0
+									stock_detail_doc.db_set('consumed_qty', consumed_qty)
+									container_doc.add_comment('Comment', f"Released qty: {flt(flt(reserved_qty[i]), precision)} for transaction with Stock Entry: {doc.name}")
+									frappe.db.commit()
+								else:
+									#for ntpt manufacturing cancle entry is on hold
+									pass
 
 			else:
 				fg_containers = get_list("Container",filters={"purchase_document_no": item.parent, "fg_item": 1},fields=['name'])
