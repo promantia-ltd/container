@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-02-12 12:40:54.530527",
+ "default_view": "List",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "container",
+  "before_reconciliation_section",
+  "current_qty",
+  "column_break_pksrv",
+  "uom",
+  "after_reconciliation_section",
+  "stock_qty",
+  "secondary_qty",
+  "column_break_leebn",
+  "stock_uom",
+  "secondary_uom"
+ ],
+ "fields": [
+  {
+   "fieldname": "before_reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "Before Reconciliation"
+  },
+  {
+   "fieldname": "current_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Current Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_pksrv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "after_reconciliation_section",
+   "fieldtype": "Section Break",
+   "label": "After Reconciliation"
+  },
+  {
+   "fieldname": "stock_qty",
+   "fieldtype": "Float",
+   "label": "Stock Qty"
+  },
+  {
+   "fieldname": "secondary_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Secondary Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_leebn",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "stock_uom",
+   "fieldtype": "Link",
+   "label": "Stock UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "secondary_uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Secondary UOM",
+   "options": "UOM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "container",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Container",
+   "options": "Container"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2024-02-13 00:14:30.033742",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Container Reconciliation Items",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
