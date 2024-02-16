@@ -3,41 +3,44 @@ from datetime import datetime, timedelta
 from container.container.doctype.purchase_receipt.purchase_receipt import get_auto_container_nos,calculate_base_and_room_erpiry_date,get_aging_rate
 
 container_doctype="Container"
+has_partially_reserved = frappe.get_cached_value('Container Settings', None, 'has_partially_reserved')
+
 def on_submit(self,method=None):
-    if not self.system_generated and self.stock_entry_type=="Manufacture":
-        no_of_containers=0
-        qty=0
-        if self.work_order:
-            wo_doc=frappe.get_doc("Work Order",self.work_order)
-            item_doc=frappe.get_doc("Item",wo_doc.production_item)
-        else:
-            row_fg_item=self.get_finished_item_row()
-            item_doc=frappe.get_doc("Item",row_fg_item)
-        try:
-            if item_doc.is_containerized:
-                for item in self.get("items"):
-                    if item.is_finished_item:
-                        no_of_containers=item.no_of_containers
-                        qty=item.qty
-                if not no_of_containers and not qty:
-                    finished_item=frappe.db.get_list("Stock Entry Details",filters={"is_finished_item":1},fields=["qty","no_of_containers"],as_dict=True)
-                    no_of_containers=finished_item.no_of_containers
-                    qty=finished_item.qty
-                fg_item=1
-                # get the least expiry date from among the raw items
-                get_min_expiry_date=least_expiry_date(self)
-                comment,containers=create_containers(self,item_doc,qty,get_min_expiry_date,fg_item,no_of_containers)
-                frappe.db.sql("""update `tabStock Entry Detail` set containers=%s where parent=%s and is_finished_item=1""",(containers,self.name))
-                frappe.msgprint("Created Containers are ("+str(no_of_containers)+"): "+comment)
-        except Exception as e:
-            frappe.log_error("An error occurred: {}".format(str(e)))
-            frappe.throw("An error occurred. Please contact the administrator.For more info check the Error Log")
-        else:
-            #it will execute after successful run of try block
+    if has_partially_reserved:
+        if not self.system_generated and self.stock_entry_type=="Manufacture":
+            no_of_containers=0
+            qty=0
+            if self.work_order:
+                wo_doc=frappe.get_doc("Work Order",self.work_order)
+                item_doc=frappe.get_doc("Item",wo_doc.production_item)
+            else:
+                row_fg_item=self.get_finished_item_row()
+                item_doc=frappe.get_doc("Item",row_fg_item)
+            try:
+                if item_doc.is_containerized:
+                    for item in self.get("items"):
+                        if item.is_finished_item:
+                            no_of_containers=item.no_of_containers
+                            qty=item.qty
+                    if not no_of_containers and not qty:
+                        finished_item=frappe.db.get_list("Stock Entry Details",filters={"is_finished_item":1},fields=["qty","no_of_containers"],as_dict=True)
+                        no_of_containers=finished_item.no_of_containers
+                        qty=finished_item.qty
+                    fg_item=1
+                    # get the least expiry date from among the raw items
+                    get_min_expiry_date=least_expiry_date(self)
+                    comment,containers=create_containers(self,item_doc,qty,get_min_expiry_date,fg_item,no_of_containers)
+                    frappe.db.sql("""update `tabStock Entry Detail` set containers=%s where parent=%s and is_finished_item=1""",(containers,self.name))
+                    frappe.msgprint("Created Containers are ("+str(no_of_containers)+"): "+comment)
+            except Exception as e:
+                frappe.log_error("An error occurred: {}".format(str(e)))
+                frappe.throw("An error occurred. Please contact the administrator.For more info check the Error Log")
+            else:
+                #it will execute after successful run of try block
+                update_expiry_date(self)
+        elif self.stock_entry_type=="Material Transfer" or self.stock_entry_type=="Material Transfer for Manufacture":
+            #update the aging history when the container transfer from one warehouse to another
             update_expiry_date(self)
-    elif self.stock_entry_type=="Material Transfer" or self.stock_entry_type=="Material Transfer for Manufacture":
-        #update the aging history when the container transfer from one warehouse to another
-        update_expiry_date(self)
 
 def get_finished_item_row(self):
 		finished_item_row = None
@@ -297,39 +300,40 @@ def get_container_life(container,aging_rate=None,trans_date=frappe.utils.now_dat
 # Cron job to update Daily Expiry Date
 @frappe.whitelist()
 def daily_update_expiry_date():
-    containers=frappe.db.sql("""select tsn.name from `tabContainer` tsn ,`tabItem` ti where tsn.item_code=ti.name and ti.dynamic_aging=1""",as_dict=True)
-    for container in containers:
-        container_doc,prev_trans_name,prev_trans_details,existing_text=None,None,None,None
-        container_doc=frappe.get_doc(container_doctype,container.name)
-        prev_trans_name=frappe.get_all("Aging History", filters={'parent': container.name}, order_by='idx DESC', limit=1)
-        prev_trans_details=frappe.get_doc("Aging History",prev_trans_name[0]["name"])
-        existing_text=prev_trans_details.description
-        get_data=get_container_life(container.name)
-        if get_data["status"]=="SUCCESS" and get_data["shelf_life"]>0:
-            container_doc.db_set("base_expiry_date",get_data["base_expiry_date"])
-            container_doc.db_set("expiry_date",get_data["rt_expiry_date"])
-            container_doc.save(ignore_permissions=True)
-            try:
-                frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"datetime",frappe.utils.now_datetime() or datetime.now())
-                frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"shelf_life_in_days",get_data["shelf_life"])
-                frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"base_expiry_date",get_data["base_expiry_date"])
-                frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"rt_expiry_date",get_data["rt_expiry_date"])
-                frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"description",str(existing_text)+"\n"+"Updated Time:"+str(frappe.utils.now_datetime() or datetime.now()))
-                frappe.db.commit()
-            except Exception as e:
-                frappe.db.rollback()
-                frappe.log_error("An error occurred"+str(container)+": {}".format(str(e)))
-                continue
-        elif get_data["status"]=="FAILED":
-            try:
-                frappe.log_error(title="Return Failed"+str(container),message=" Status: {}".format(str(get_data)))
-            except Exception as e:
-                continue
-        elif get_data["shelf_life"]<0:
-            try:
-                frappe.log_error(title="This Container Expired"+str(container),message=" Status: {}".format(str(get_data)))
-            except Exception as e:
-                continue
+    if not has_partially_reserved:
+        containers=frappe.db.sql("""select tsn.name from `tabContainer` tsn ,`tabItem` ti where tsn.item_code=ti.name and ti.dynamic_aging=1""",as_dict=True)
+        for container in containers:
+            container_doc,prev_trans_name,prev_trans_details,existing_text=None,None,None,None
+            container_doc=frappe.get_doc(container_doctype,container.name)
+            prev_trans_name=frappe.get_all("Aging History", filters={'parent': container.name}, order_by='idx DESC', limit=1)
+            prev_trans_details=frappe.get_doc("Aging History",prev_trans_name[0]["name"])
+            existing_text=prev_trans_details.description
+            get_data=get_container_life(container.name)
+            if get_data["status"]=="SUCCESS" and get_data["shelf_life"]>0:
+                container_doc.db_set("base_expiry_date",get_data["base_expiry_date"])
+                container_doc.db_set("expiry_date",get_data["rt_expiry_date"])
+                container_doc.save(ignore_permissions=True)
+                try:
+                    frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"datetime",frappe.utils.now_datetime() or datetime.now())
+                    frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"shelf_life_in_days",get_data["shelf_life"])
+                    frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"base_expiry_date",get_data["base_expiry_date"])
+                    frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"rt_expiry_date",get_data["rt_expiry_date"])
+                    frappe.db.set_value("Aging History",prev_trans_name[0]["name"],"description",str(existing_text)+"\n"+"Updated Time:"+str(frappe.utils.now_datetime() or datetime.now()))
+                    frappe.db.commit()
+                except Exception as e:
+                    frappe.db.rollback()
+                    frappe.log_error("An error occurred"+str(container)+": {}".format(str(e)))
+                    continue
+            elif get_data["status"]=="FAILED":
+                try:
+                    frappe.log_error(title="Return Failed"+str(container),message=" Status: {}".format(str(get_data)))
+                except Exception as e:
+                    continue
+            elif get_data["shelf_life"]<0:
+                try:
+                    frappe.log_error(title="This Container Expired"+str(container),message=" Status: {}".format(str(get_data)))
+                except Exception as e:
+                    continue
 
 from erpnext.controllers.status_updater import StatusUpdater
 
