@@ -56,7 +56,10 @@ doctype_js = {
     "Work Order" : "container/doctype/work_order/work_order.js",
     "Stock Entry":"container/doctype/stock_entry/stock_entry.js",
     "Purchase Receipt":"container/doctype/purchase_receipt/purchase_receipt.js",
-    "Stock Reconciliation":"container/doctype/stock_reconciliation/stock_reconciliation.js"
+    "Stock Reconciliation":"container/doctype/stock_reconciliation/stock_reconciliation.js",
+    "Item":"container/doctype/item/item.js",
+    "Item Group":"container/doctype/item_group/item_group.js",
+    "Warehouse":"container/doctype/warehouse/warehouse.js"
     }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}

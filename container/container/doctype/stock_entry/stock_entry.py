@@ -504,11 +504,6 @@ def set_containers_status(doc, method):
 
 def validate(doc,method):
 	try:
-	#This code is forstanderd rate fetching
-	# 	for each in doc.items:
-	# 		each.custom_total_standard_rate = each.custom_standard_rate * each.qty
-	# 		if each.custom_total_standard_rate:
-	# 			each.custom_percentage_difference_to_actual_amount = ((each.basic_rate - each.custom_total_standard_rate)/each.custom_total_standard_rate)*100
 		if doc.stock_entry_type=="Material Transfer for Manufacture" or doc.stock_entry_type=="Material Transfer":
 			for item in doc.items:
 				item_doc=frappe.get_doc("Item",item.item_code)
@@ -524,6 +519,10 @@ def validate(doc,method):
 						container_doc=frappe.get_doc("Container",cont)
 						if container_doc.warehouse !=item.s_warehouse:
 							frappe.throw('Source warehouse not matching with selected container warehouse at row '+str(item.idx)+',please check in container :'+"<a href='/app/container/"+cont+"'>"+cont+"</a><br>")
+						if doc.stock_entry_type=="Material Transfer":
+							stock_reserved_details=frappe.db.get_all("Stock Details",filters={'parent': cont,'reserved_qty':['>',0]},fields={'name'})
+							if len(stock_reserved_details) > 0:
+								frappe.throw("The container "+"<a href='/app/container/"+cont+"'>"+cont+"</a>" + " is reserved,so you can't transfer it.")
 
 	except ContainersNotAssigned as e:
 		frappe.throw(str(e))
@@ -1056,11 +1055,14 @@ def update_sle(self):
 					fg_containers=frappe.db.get_list("Container",filters={"purchase_document_no":item.parent,"fg_item":1},fields=['name'])
 					all_containers = [str(d['name']) for d in fg_containers]
 					str_containers=",".join(all_containers)
-					sle=frappe.get_doc("Stock Ledger Entry",{"voucher_no":item.parent,"item_code":item.item_code,"voucher_detail_no":item.name})
-					sle.db_set("containers",str_containers)
+					if str_containers:
+						sle=frappe.get_doc("Stock Ledger Entry",{"voucher_no":item.parent,"item_code":item.item_code,"voucher_detail_no":item.name})
+						sle.db_set("containers",str_containers)
 					frappe.db.commit()
-	except KeyError:
-		pass
+	except KeyError as e:
+		frappe.log_error("An error occurred: {}".format(str(e)))
+	except Exception as e:
+		frappe.log_error("An error occurred: {}".format(str(e)))
 
 def update_sle_for_raw(item):
 	containers=None
@@ -1096,7 +1098,7 @@ def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None
             if not return_container or (return_container and return_container==container['name']):
                 if not return_warehouse or (return_warehouse and return_warehouse==record['warehouse']):
                     if not item_code or (item_code and item_code==record['item_code']):
-                        stock_reserved_details=frappe.db.get_all("Stock Details",filters={'parent':container['name'],'reserved_qty':['>',1]},fields={'name'})
+                        stock_reserved_details=frappe.db.get_all("Stock Details",filters={'parent':container['name'],'reserved_qty':['>',0]},fields={'name'})
                         if len(stock_reserved_details)==0:
                             if container['primary_available_qty']>record['primary_qty']:
                                 qty=record['primary_qty']
