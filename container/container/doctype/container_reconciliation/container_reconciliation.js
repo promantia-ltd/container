@@ -175,6 +175,7 @@ frappe.ui.form.on('Container Reconciliation Items', {
 			frappe.throw('Qty cannot be less than Zero ')
 		}
 		else{
+			item.secondary_qty=item.stock_qty/frm.doc.secondary_conversion_factor
 			cur_frm.refresh_field("items")
 			var total_qty=0
 				$.each(frm.doc.items, function (idx,item) {
@@ -200,6 +201,7 @@ frappe.ui.form.on('Container Reconciliation Items Add', {
 			frappe.throw('Qty cannot be less than Zero ')
 		}
 		else{
+			item.secondary_qty=item.stock_qty/frm.doc.secondary_conversion_factor
 			cur_frm.refresh_field("items")
 			var total_qty=0
 				$.each(frm.doc.items, function (idx,item) {
