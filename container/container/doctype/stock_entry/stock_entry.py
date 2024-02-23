@@ -57,7 +57,7 @@ def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, wor
 		primary_qty = required_qty_in_primary_uom
 
 		#get the target warehouse containers
-		query = get_containers(item, t_warehouse)
+		query = get_containers(item, t_warehouse, item_doc.ignore_scrap_qty)
 
 		if query:
 			#Target
@@ -65,8 +65,8 @@ def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, wor
 			#set this containers in reserved stock item table
 			minimal_expiry_containers = get_minimal_expiry_containers(item, query)
 			container_data['target'],required_qty_in_primary_uom = pick_container(query, required_qty_in_primary_uom, used, minimal_expiry_containers)
+			p_qty = container_data['target']['primary_available_qty']
 			if required_qty != primary_qty:
-				p_qty = container_data['target']['primary_available_qty']
 				for q in p_qty:
 					qty_in_bom_uom.append(q/get_uom_c_factor)
 			else:
@@ -82,7 +82,7 @@ def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, wor
 			if 'target' in container_data.keys():
 				container_data['partially_reserved'] = 1
 			#get the source warehouse containers
-			query = get_containers(item, warehouse)
+			query = get_containers(item, warehouse, item_doc.ignore_scrap_qty)
 
 			#check the required qty available in containers
 			qty_check = sum(value.primary_available_qty for value in query)
@@ -93,8 +93,8 @@ def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, wor
 			minimal_expiry_containers = get_minimal_expiry_containers(item, query)
 			container_data['source'], _ = pick_container(query, required_qty_in_primary_uom, used, minimal_expiry_containers)
 			qty_in_bom_uom =[]
+			p_qty = container_data['source']['primary_available_qty']
 			if required_qty != primary_qty:
-				p_qty = container_data['source']['primary_available_qty']
 				for q in p_qty:
 					qty_in_bom_uom.append(q/get_uom_c_factor)
 			else:
@@ -111,7 +111,6 @@ def get_conversion_factor(item, uom):
 
 def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_containers):
 	container_no,primary_available_qty,primary_available_qty_used = [],[],[]
-	transfered, returned = [], []
 	remaining_qty =" "
 	
 	for data in query:
@@ -146,15 +145,26 @@ def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_contain
 
 	return all_dict, required_qty_in_primary_uom
 
-def get_containers(item, warehouse):
-    query = frappe.db.sql("""
-        SELECT name, primary_available_qty, expiry_date
-        FROM `tabContainer`
-        WHERE item_code = %s AND warehouse = %s AND status = "Active" AND primary_available_qty > 0
-        ORDER BY creation
-    """, (item, warehouse), as_dict=True)
-    return query
+def get_containers(item, warehouse, ignore_scrap_qty=0):
+	if ignore_scrap_qty:
+		#ignore 0.1 kg of container
+		ignore_scrap_qty = 0.1
+	else:
+		ignore_scrap_qty = 0
 
+	try:
+		query = frappe.db.sql("""
+			SELECT name, primary_available_qty, expiry_date
+			FROM `tabContainer`
+			WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
+			ORDER BY creation
+		""".format(item, warehouse, ignore_scrap_qty), as_dict=True)
+
+	except Exception as e:
+		frappe.log_error(f"Error executing SQL query: {str(e)}")
+		query = []
+
+	return query
 
 def get_minimal_expiry_containers(item, query):
     containers_with_minimal_expiry = []
