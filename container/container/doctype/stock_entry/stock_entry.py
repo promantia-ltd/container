@@ -146,19 +146,26 @@ def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_contain
 	return all_dict, required_qty_in_primary_uom
 
 def get_containers(item, warehouse, ignore_scrap_qty=0):
-	if ignore_scrap_qty:
-		#ignore 0.1 kg of container
-		ignore_scrap_qty = 0.1
-	else:
-		ignore_scrap_qty = 0
-
 	try:
-		query = frappe.db.sql("""
-			SELECT name, primary_available_qty, expiry_date
-			FROM `tabContainer`
-			WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
-			ORDER BY creation
-		""".format(item, warehouse, ignore_scrap_qty), as_dict=True)
+		if ignore_scrap_qty:
+			#ignore 0.1 kg of container
+			ignore_scrap_qty = 0.1
+
+			query = frappe.db.sql("""
+				SELECT name, (primary_available_qty - 0.1) as primary_available_qty, expiry_date
+				FROM `tabContainer`
+				WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
+				ORDER BY creation
+			""".format(item, warehouse, ignore_scrap_qty), as_dict=True)
+		else:
+			ignore_scrap_qty = 0
+
+			query = frappe.db.sql("""
+				SELECT name, primary_available_qty, expiry_date
+				FROM `tabContainer`
+				WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
+				ORDER BY creation
+			""".format(item, warehouse, ignore_scrap_qty), as_dict=True)
 
 	except Exception as e:
 		frappe.log_error(f"Error executing SQL query: {str(e)}")
