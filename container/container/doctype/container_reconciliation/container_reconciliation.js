@@ -125,7 +125,7 @@ function add_serial_nos(item,frm){
 				frappe.call({
 			method: "container.container.doctype.container_reconciliation.container_reconciliation.get_new_containers",
 			args:{
-				item:item,
+				item:frm.doc.item_code,
 				count:data.serial_no_count
 
 			},
