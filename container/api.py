@@ -6,7 +6,7 @@ container_doctype="Container"
 
 def on_submit(self,method=None):
     has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
-    if has_partially_reserved:
+    if not has_partially_reserved:
         if not self.system_generated and self.stock_entry_type=="Manufacture":
             no_of_containers=0
             qty=0
