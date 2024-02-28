@@ -56,6 +56,7 @@
   "customer_name",
   "primary_uom",
   "primary_available_qty",
+  "ignore_scrap_qty_01_kg",
   "invoice_details",
   "sales_invoice",
   "stock_transactions_section",
@@ -620,11 +621,18 @@
    "hidden": 1,
    "label": "Selected",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "item_code.ignore_scrap_qty",
+   "fieldname": "ignore_scrap_qty_01_kg",
+   "fieldtype": "Check",
+   "label": "Ignore Scrap Qty (0.1 KG)"
   }
  ],
  "icon": "fa fa-barcode",
  "links": [],
- "modified": "2024-01-08 22:53:55.729069",
+ "modified": "2024-02-28 12:43:44.088483",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container",
