@@ -3,10 +3,10 @@ from datetime import datetime, timedelta
 from container.container.doctype.purchase_receipt.purchase_receipt import get_auto_container_nos,calculate_base_and_room_erpiry_date,get_aging_rate
 
 container_doctype="Container"
-has_partially_reserved = frappe.get_cached_value('Container Settings', None, 'has_partially_reserved')
 
 def on_submit(self,method=None):
-    if has_partially_reserved:
+    has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
+    if not has_partially_reserved:
         if not self.system_generated and self.stock_entry_type=="Manufacture":
             no_of_containers=0
             qty=0
@@ -300,6 +300,7 @@ def get_container_life(container,aging_rate=None,trans_date=frappe.utils.now_dat
 # Cron job to update Daily Expiry Date
 @frappe.whitelist()
 def daily_update_expiry_date():
+    has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
     if not has_partially_reserved:
         containers=frappe.db.sql("""select tsn.name from `tabContainer` tsn ,`tabItem` ti where tsn.item_code=ti.name and ti.dynamic_aging=1""",as_dict=True)
         for container in containers:
