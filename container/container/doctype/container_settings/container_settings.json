@@ -13,7 +13,7 @@
  ],
  "fields": [
   {
-   "default": "0",
+   "default": "1",
    "fieldname": "has_partially_reserved",
    "fieldtype": "Check",
    "label": "Reserve Containers Partially"
@@ -45,7 +45,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2024-01-18 23:41:57.059090",
+ "modified": "2024-02-29 16:32:13.744705",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container Settings",

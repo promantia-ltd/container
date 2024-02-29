@@ -21,9 +21,9 @@ import datetime
 work_order_doctype = "Work Order"
 material_request_doctype = "Material Request"
 container_doctype = "Container"
-has_partially_reserved = frappe.get_cached_value('Container Settings', None, 'has_partially_reserved')
+has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
 
-precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
+precision = frappe.db.get_single_value('Container Settings', 'container_precision')
 if not precision:
     precision = 4
 else:
@@ -218,7 +218,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 		container_used = json.loads(container_used)
 		
 	used = [each for val in container_used for each in val] if container_used else []
-
+	has_partially_reserved = partially_reserved()
 	remaining_qty = ""
 	item_doc = frappe.get_doc("Item", item)
 
@@ -316,7 +316,7 @@ from frappe import throw
 def set_containers_status(doc, method):
 	comment = "<b>Stock Reserved Successfully</b><br>Assigned Containers:<br>"
 	reserve_qty_str = ""
-
+	has_partially_reserved = partially_reserved()
 
 	if doc.stock_entry_type == "Material Transfer for Manufacture" and doc.once_reserved != 1:
 		for item in doc.items:
@@ -549,6 +549,7 @@ from frappe import get_doc, get_list, delete_doc, throw, msgprint
 
 def on_cancel(doc, method):
 	comment = ""
+	has_partially_reserved = partially_reserved()
 
 	if doc.stock_entry_type == "Material Transfer for Manufacture":
 		comment = "Released Containers:<br>"
@@ -882,6 +883,8 @@ def assign_containers(item,used,work_order=None):
 
 @frappe.whitelist()  
 def slit_container_and_unreserve_container(self):
+	has_partially_reserved = partially_reserved()
+
 	if not has_partially_reserved:
 		self=json.loads(self)
 		if self["stock_entry_type"]=="Manufacture" and self['system_generated'] !=1:
@@ -1181,3 +1184,10 @@ def fetch_container(doctype, txt, searchfield, start, page_len, filters):
 #it will check the three float digits are equal or not
 def are_floats_equal(value1, value2, tolerance=1e-3):
 	return abs(value1 - value2) < tolerance
+
+@frappe.whitelist()
+def partially_reserved():
+	try:
+		return frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
+	except Exception as e:
+		return 1
