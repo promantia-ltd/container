@@ -1,46 +1,46 @@
 import frappe
 from datetime import datetime, timedelta
 from container.container.doctype.purchase_receipt.purchase_receipt import get_auto_container_nos,calculate_base_and_room_erpiry_date,get_aging_rate
+from container.container.doctype.stock_entry.stock_entry import partially_reserved
 
 container_doctype="Container"
 
 def on_submit(self,method=None):
-    has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
-    if not has_partially_reserved:
-        if not self.system_generated and self.stock_entry_type=="Manufacture":
-            no_of_containers=0
-            qty=0
-            if self.work_order:
-                wo_doc=frappe.get_doc("Work Order",self.work_order)
-                item_doc=frappe.get_doc("Item",wo_doc.production_item)
-            else:
-                row_fg_item=self.get_finished_item_row()
-                item_doc=frappe.get_doc("Item",row_fg_item)
-            try:
-                if item_doc.is_containerized:
-                    for item in self.get("items"):
-                        if item.is_finished_item:
-                            no_of_containers=item.no_of_containers
-                            qty=item.qty
-                    if not no_of_containers and not qty:
-                        finished_item=frappe.db.get_list("Stock Entry Details",filters={"is_finished_item":1},fields=["qty","no_of_containers"],as_dict=True)
-                        no_of_containers=finished_item.no_of_containers
-                        qty=finished_item.qty
-                    fg_item=1
-                    # get the least expiry date from among the raw items
-                    get_min_expiry_date=least_expiry_date(self)
-                    comment,containers=create_containers(self,item_doc,qty,get_min_expiry_date,fg_item,no_of_containers)
-                    frappe.db.sql("""update `tabStock Entry Detail` set containers=%s where parent=%s and is_finished_item=1""",(containers,self.name))
-                    frappe.msgprint("Created Containers are ("+str(no_of_containers)+"): "+comment)
-            except Exception as e:
-                frappe.log_error("An error occurred: {}".format(str(e)))
-                frappe.throw("An error occurred. Please contact the administrator.For more info check the Error Log")
-            else:
-                #it will execute after successful run of try block
-                update_expiry_date(self)
-        elif self.stock_entry_type=="Material Transfer" or self.stock_entry_type=="Material Transfer for Manufacture":
-            #update the aging history when the container transfer from one warehouse to another
+    if not self.system_generated and self.stock_entry_type=="Manufacture":
+        no_of_containers=0
+        qty=0
+        if self.work_order:
+            wo_doc=frappe.get_doc("Work Order",self.work_order)
+            item_doc=frappe.get_doc("Item",wo_doc.production_item)
+        else:
+            row_fg_item=self.get_finished_item_row()
+            item_doc=frappe.get_doc("Item",row_fg_item)
+        try:
+            if item_doc.is_containerized:
+                for item in self.get("items"):
+                    if item.is_finished_item:
+                        #getting number of containers for fg_item
+                        no_of_containers=item.no_of_containers
+                        qty=item.qty
+                if not no_of_containers and not qty:
+                    finished_item=frappe.db.get_list("Stock Entry Details",filters={"is_finished_item":1},fields=["qty","no_of_containers"],as_dict=True)
+                    no_of_containers=finished_item.no_of_containers
+                    qty=finished_item.qty
+                fg_item=1
+                # get the least expiry date from among the raw items
+                get_min_expiry_date=least_expiry_date(self)
+                comment,containers=create_containers(self,item_doc,qty,get_min_expiry_date,fg_item,no_of_containers)
+                frappe.db.sql("""update `tabStock Entry Detail` set containers=%s where parent=%s and is_finished_item=1""",(containers,self.name))
+                frappe.msgprint("Created Containers are ("+str(no_of_containers)+"): "+comment)
+        except Exception as e:
+            frappe.log_error("An error occurred: {}".format(str(e)))
+            frappe.throw("An error occurred. Please contact the administrator.For more info check the Error Log")
+        else:
+            #it will execute after successful run of try block
             update_expiry_date(self)
+    elif self.stock_entry_type=="Material Transfer" or self.stock_entry_type=="Material Transfer for Manufacture":
+        #update the aging history when the container transfer from one warehouse to another
+        update_expiry_date(self)
 
 def get_finished_item_row(self):
 		finished_item_row = None
@@ -61,9 +61,13 @@ def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_cont
         frappe.throw("Please mention secondary uom for this item "+item_doc.item_code)
     if not self.to_warehouse:
         frappe.throw("Please mention the target warehouse")
-    warehouse_temperature=frappe.db.get_value("Warehouse",self.to_warehouse,["temperature","name"],as_dict=True)
-    if not warehouse_temperature.temperature:
-        frappe.throw("Please mention the Temperature in Warehouse "+self.to_warehouse)
+    warehouse_temperature=frappe.db.get_value("Warehouse",self.to_warehouse,"temperature")
+    if not warehouse_temperature:
+        has_partially_reserved = partially_reserved()
+        if not has_partially_reserved:
+            frappe.throw("Please mention the Temperature in Warehouse "+self.to_warehouse)
+        else:
+            warehouse_temperature = None
     base_expiry_date,expiry_date,aging_rate,creation_date=calculate_base_and_room_erpiry_date(item_doc,warehouse_temperature) #Get the base and room temperature 
     container_series=frappe.db.get_value("Item",{"name":item_doc.item_code,"is_containerized":1},"container_number_series")
     container_nos = get_auto_container_nos(container_series,no_of_containers)
@@ -78,7 +82,7 @@ def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_cont
                         container_no=container_list[container],
                         item_code=item_doc.item_code,
                         warehouse=self.to_warehouse,
-                        temperature=warehouse_temperature.temperature,
+                        temperature=warehouse_temperature,
                         item_name=item_doc.item_name,
                         item_group=item_doc.item_group,
                         description=item_doc.description,
@@ -94,18 +98,19 @@ def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_cont
                         uom=item_doc.stock_uom,
                         fg_item=fg_item,
                         ))
-            container_doc.append("aging_history",{
-                        "datetime":creation_date,
-                        "warehouse":self.to_warehouse,
-                        "warehouse_temperature":warehouse_temperature.temperature,
-                        "aging_rate":aging_rate,
-                        "base_expiry_date":base_expiry_date,
-                        "rt_expiry_date":expiry_date,
-                        "creation_document_type":self.doctype,
-                        "stock_txn_reference":self.name,
-                        "shelf_life_in_days":shelf_life,
-                        "description":"Created from "+self.doctype+" ref No:"+self.name
-                        })
+            if item_doc.dynamic_aging:
+                container_doc.append("aging_history",{
+                            "datetime":creation_date,
+                            "warehouse":self.to_warehouse,
+                            "warehouse_temperature":warehouse_temperature,
+                            "aging_rate":aging_rate,
+                            "base_expiry_date":base_expiry_date,
+                            "rt_expiry_date":expiry_date,
+                            "creation_document_type":self.doctype,
+                            "stock_txn_reference":self.name,
+                            "shelf_life_in_days":shelf_life,
+                            "description":"Created from "+self.doctype+" ref No:"+self.name
+                            })
             containers+=container_list[container]+","
             comment=comment+"<a href='/app/container/"+container_list[container]+"'>"+container_list[container]+"</a><br>"
             container_doc.save(ignore_permissions=True)
@@ -119,44 +124,42 @@ def update_expiry_date(self):
     submited_trans_date=frappe.utils.now_datetime() or datetime.now()
     for item in self.get("items"):
         item_doc=frappe.get_doc("Item",item.item_code)
-        if item_doc.is_containerized and item_doc.container_number_series:
+        if item_doc.is_containerized and item_doc.container_number_series and item_doc.dynamic_aging:
             if item.containers and not item.is_finished_item:
                 container_list=item.containers.split(",")
                 for con in range(len(container_list)):
                     if container_list[con]:
-                        item_doc=frappe.get_doc("Item",item.item_code)
-                        if item_doc.dynamic_aging:
-                            container_doc=frappe.get_doc(container_doctype,container_list[con])
-                            last_trans_name=frappe.get_all('Aging History', filters={'parent': container_list[con]}, order_by='idx DESC', limit=1)
-                            latest_aging_details=frappe.get_doc("Aging History",last_trans_name)
-                            shelf_life_in_days,base_expiry_date,expiry_date=get_base_room_temp_expiry_date_and_shelf_life(latest_aging_details,item_doc,submited_trans_date)
-                            target_warehouse=get_target_warehouse(self,item.item_code)
-                            target_warehouse_temperature=frappe.db.get_value("Warehouse",target_warehouse,["temperature","name"],as_dict=True)
-                            if not target_warehouse_temperature.temperature:
-                                frappe.throw("Please mention the temperature in warehouse "+item.t_warehouse)
-                            target_aging_rate=get_aging_rate(target_warehouse_temperature,item_doc)
-                            try:
-                                container_doc.db_set("temperature",target_warehouse_temperature.temperature)
-                                container_doc.db_set("base_expiry_date",base_expiry_date)
-                                container_doc.db_set("expiry_date",expiry_date)
-                                container_doc.append("aging_history",{
-                                    "datetime":submited_trans_date,
-                                    "warehouse":target_warehouse,
-                                    "warehouse_temperature":target_warehouse_temperature.temperature,
-                                    "aging_rate":target_aging_rate,
-                                    "base_expiry_date":base_expiry_date,
-                                    "rt_expiry_date":expiry_date,
-                                    "creation_document_type":self.doctype,
-                                    "stock_txn_reference":self.name,
-                                    "shelf_life_in_days":shelf_life_in_days,
-                                    "description":"Created from "+self.doctype+" ref No:"+self.name+".Transfered from "+item.s_warehouse+" to "+target_warehouse
-                                })
-                                # container_doc.save(ignore_permissions=True)
-                                frappe.db.commit()
-                            except Exception as e:
-                                frappe.db.rollback()
-                                frappe.log_error("An error occurred: {}".format(str(e)))
-                                frappe.throw("An error occurred While Updating the expiry date. Please contact the administrator.For more info check the Error Log")
+                        container_doc=frappe.get_doc(container_doctype,container_list[con])
+                        last_trans_name=frappe.get_all('Aging History', filters={'parent': container_list[con]}, order_by='idx DESC', limit=1)
+                        latest_aging_details=frappe.get_doc("Aging History",last_trans_name)
+                        shelf_life_in_days,base_expiry_date,expiry_date=get_base_room_temp_expiry_date_and_shelf_life(latest_aging_details,item_doc,submited_trans_date)
+                        target_warehouse=get_target_warehouse(self,item.item_code)
+                        target_warehouse_temperature=frappe.db.get_value("Warehouse",target_warehouse,["temperature","name"],as_dict=True)
+                        if not target_warehouse_temperature.temperature:
+                            frappe.throw("Please mention the temperature in warehouse "+item.t_warehouse)
+                        target_aging_rate=get_aging_rate(target_warehouse_temperature,item_doc)
+                        try:
+                            container_doc.db_set("temperature",target_warehouse_temperature.temperature)
+                            container_doc.db_set("base_expiry_date",base_expiry_date)
+                            container_doc.db_set("expiry_date",expiry_date)
+                            container_doc.append("aging_history",{
+                                "datetime":submited_trans_date,
+                                "warehouse":target_warehouse,
+                                "warehouse_temperature":target_warehouse_temperature.temperature,
+                                "aging_rate":target_aging_rate,
+                                "base_expiry_date":base_expiry_date,
+                                "rt_expiry_date":expiry_date,
+                                "creation_document_type":self.doctype,
+                                "stock_txn_reference":self.name,
+                                "shelf_life_in_days":shelf_life_in_days,
+                                "description":"Created from "+self.doctype+" ref No:"+self.name+".Transfered from "+item.s_warehouse+" to "+target_warehouse
+                            })
+                            # container_doc.save(ignore_permissions=True)
+                            frappe.db.commit()
+                        except Exception as e:
+                            frappe.db.rollback()
+                            frappe.log_error("An error occurred: {}".format(str(e)))
+                            frappe.throw("An error occurred While Updating the expiry date. Please contact the administrator.For more info check the Error Log")
             elif not item.containers and not item.is_finished_item:
                 frappe.throw("Containers Not assigned for the item "+item.item_code+" at row "+str(item.idx))
 
