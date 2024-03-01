@@ -76,29 +76,31 @@ def on_submit(self,method):
                 frappe.log_error("An error occurred: {}".format(str(e)))
                 frappe.throw("An error occurred,please contact the administrator.For more info check the Error Log")
 def calculate_base_and_room_erpiry_date(item_doc,w_temperature):
-    creation_date = frappe.utils.now_datetime() or datetime.now()
-    base_aging_rate,rt_aging_rate=None,None
-    base_expiry_date= creation_date+timedelta(int(item_doc.shelf_life_in_days))
-    for base_temperature in item_doc.get("temperature_characteristics"):
-        if base_temperature.type=="Base Temperature":
-            base_aging_rate=base_temperature.aging_rate
-        elif base_temperature.type=="Room Temperature":
-            rt_aging_rate=base_temperature.aging_rate
-    if base_aging_rate and rt_aging_rate:
-        out_life=int(item_doc.shelf_life_in_days) * base_aging_rate / rt_aging_rate
-    elif base_aging_rate and not(rt_aging_rate):
-        frappe.throw("Please mention the room temperature aging rate in item master")
-    elif not(base_aging_rate) and rt_aging_rate:
-        get_default_aging_rate=frappe.db.get_value("NTPT Settings","NTPT Settings","default_aging_rate")
-        if not get_default_aging_rate:
-            frappe.throw("Please mention the base temperature aging rate in item master")
+    if item_doc.dynamic_aging:
+        creation_date = frappe.utils.now_datetime() or datetime.now()
+        base_aging_rate,rt_aging_rate=None,None
+        base_expiry_date= creation_date+timedelta(int(item_doc.shelf_life_in_days))
+        for base_temperature in item_doc.get("temperature_characteristics"):
+            if base_temperature.type=="Base Temperature":
+                base_aging_rate=base_temperature.aging_rate
+            elif base_temperature.type=="Room Temperature":
+                rt_aging_rate=base_temperature.aging_rate
+        if base_aging_rate and rt_aging_rate:
+            out_life=int(item_doc.shelf_life_in_days) * base_aging_rate / rt_aging_rate
+        elif base_aging_rate and not(rt_aging_rate):
+            frappe.throw("Please mention the room temperature aging rate in item master")
+        elif not(base_aging_rate) and rt_aging_rate:
+            get_default_aging_rate=frappe.db.get_value("NTPT Settings","NTPT Settings","default_aging_rate")
+            if not get_default_aging_rate:
+                frappe.throw("Please mention the base temperature aging rate in item master")
+            else:
+                out_life=int(item_doc.shelf_life_in_days) * get_default_aging_rate / rt_aging_rate
         else:
-            out_life=int(item_doc.shelf_life_in_days) * get_default_aging_rate / rt_aging_rate
-    else:
-        frappe.throw("Please mention the base and room temperature in item aging characteristics section")
-    rt_expiry_date=creation_date+timedelta(out_life)
-    aging_rate=get_aging_rate(w_temperature,item_doc)
-    return base_expiry_date,rt_expiry_date,aging_rate,creation_date
+            frappe.throw("Please mention the base and room temperature in item aging characteristics section")
+        rt_expiry_date=creation_date+timedelta(out_life)
+        aging_rate=get_aging_rate(w_temperature,item_doc)
+        return base_expiry_date,rt_expiry_date,aging_rate,creation_date
+    return None, None, None, None
 def get_aging_rate(w_temperature,item_doc):
     aging_rate=None
     for temperature in item_doc.get("temperature_characteristics"):
