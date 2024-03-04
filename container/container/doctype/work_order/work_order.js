@@ -1,6 +1,31 @@
 
-// frappe.ui.form.on('Work Order', {
-// 	refresh:function(frm){
+ frappe.ui.form.on('Work Order', {
+	refresh:function(frm){
+        frm.add_custom_button(__('Update Reserved Containers Data'), function() {
+        if(frm.doc.docstatus==1){
+                			frappe.call({
+                				method:"container.container.doctype.work_order.work_order.delete_reserved_containers",
+                				args:{
+                					work_order:frm.doc.name 
+                				},
+                				async:false,
+                				callback: function(r){
+                
+                				}
+                			})	
+        frappe.call({
+            					method:"container.container.doctype.work_order.work_order.update_reserved_containers",
+            					args:{
+            						work_order:frm.doc.name
+            					},
+            					async:false,
+            					callback: function(r){
+                                    frappe.msgprint('Updated')
+                                    
+            					}
+            				})
+        }
+    })
 // 		frappe.db.get_value('Stock Settings', {name: 'Stock Settings'}, 'default_warehouse', (r) => {
 // 			frm.set_value("source_warehouse",r.default_warehouse)
 // 		})
@@ -153,5 +178,5 @@
 // 				}
 // 				}
 // 				}
-// 		    }
-// })
+		    }
+ })
