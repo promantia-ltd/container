@@ -21,7 +21,6 @@ import datetime
 work_order_doctype = "Work Order"
 material_request_doctype = "Material Request"
 container_doctype = "Container"
-has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
 
 precision = frappe.db.get_single_value('Container Settings', 'container_precision')
 if not precision:
