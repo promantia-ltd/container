@@ -52,6 +52,8 @@ def on_submit(self,method):
                                 secondary_available_qty=((item.stock_qty/item.no_of_containers)/secondary_uom_cf),
                                 status="Active",
                                 uom=item.stock_uom,
+                                batch_no=item.batch_no,
+                                purchase_rate=item.rate
                                 ))
                     if item_doc.dynamic_aging:
                         container_doc.db_set("base_expiry_date",base_expiry_date)
