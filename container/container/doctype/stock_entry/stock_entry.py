@@ -732,8 +732,8 @@ def on_cancel(doc, method):
 			container_no_doc.db_set('warehouse', item.s_warehouse)
 			frappe.db.commit()
 	#update Work Orders with the reserved and consumed container data
-	delete_reserved_containers()
-	update_reserved_containers()
+	delete_reserved_containers(doc.work_order)
+	update_reserved_containers(doc.work_order)
 
 def get_uom_conversion(item):
 	secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
@@ -791,8 +791,8 @@ def after_submit(doc,method):
 				container_no_doc.db_set('warehouse',item.t_warehouse)
 			frappe.db.commit()
 	#update Work Orders with the reserved and consumed container data
-	delete_reserved_containers()
-	update_reserved_containers()
+	delete_reserved_containers(doc.work_order)
+	update_reserved_containers(doc.work_order)
 	#update the sle for all the stock entrys
 	update_sle(doc)
 
