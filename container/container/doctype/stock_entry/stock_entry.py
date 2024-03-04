@@ -731,6 +731,9 @@ def on_cancel(doc, method):
 			container_no_doc = get_doc(container_doctype, container_no)
 			container_no_doc.db_set('warehouse', item.s_warehouse)
 			frappe.db.commit()
+	#update Work Orders with the reserved and consumed container data
+	delete_reserved_containers()
+	update_reserved_containers()
 
 def get_uom_conversion(item):
 	secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
@@ -764,6 +767,10 @@ def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item
 			return False
 	return wip_warehouse
 
+from container.container.doctype.work_order.work_order import update_reserved_containers,delete_reserved_containers
+
+
+
 def after_submit(doc,method):
 	if doc.stock_entry_type=="Material Receipt":
 		container_no_list=frappe.db.get_list(container_doctype,filters={'purchase_document_type':doc.doctype,'purchase_document_no': doc.name},fields={'*'})
@@ -783,6 +790,9 @@ def after_submit(doc,method):
 				container_no_doc=frappe.get_doc(container_doctype,container_no)
 				container_no_doc.db_set('warehouse',item.t_warehouse)
 			frappe.db.commit()
+	#update Work Orders with the reserved and consumed container data
+	delete_reserved_containers()
+	update_reserved_containers()
 	#update the sle for all the stock entrys
 	update_sle(doc)
 

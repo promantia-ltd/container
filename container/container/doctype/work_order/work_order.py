@@ -233,3 +233,58 @@ def used_containers(container_used):
 	return used
 	
 
+
+@frappe.whitelist()
+def update_reserved_containers(work_order):
+    work_order_doc=frappe.get_doc("Work Order",work_order)
+    for item in work_order_doc.required_items:
+        primary_uom=frappe.db.get_value("Item", {"item_code": item.item_code}, "stock_uom")
+        if frappe.db.get_value("Item", {"item_code": item.item_code}, "is_containerized")==1:
+            secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
+            stock_details=frappe.db.get_all("Stock Details",filters={"work_order":work_order},fields={'*'})    
+            if len(stock_details)>0:
+                for detail in stock_details:
+                    container_doc=frappe.get_doc("Container",detail.parent)
+                    if container_doc.item_code==item.item_code:
+                        work_order_doc.append("custom_work_order_containers_reserved",
+                                {
+                                    "item_code":item.item_code,
+                                    "container":container_doc.name,
+                                    "warehouse":detail.warehouse,
+                                    "qty_as_per_work_order":str(item.required_qty)+" "+primary_uom,
+                                    "transfered_qty":str((detail.consumed_qty)+float(detail.reserved_qty))+" "+primary_uom,
+                                    "transfered_qty_in_secondary_uom":str(round(((detail.consumed_qty)+float(detail.reserved_qty))/secondary_uom_list[0].conversion_factor,4))+" "+secondary_uom_list[0].uom
+                                }
+                                
+                        )
+                
+            else:
+                work_order_doc.append("custom_work_order_containers_reserved",
+                            {
+                                "item_code":item.item_code,
+                                "qty_as_per_work_order":str(round((float(item.required_qty)),4))+" "+primary_uom,
+                                "transfered_qty":0,
+                                "transfered_qty_in_tertiary_uom":0
+                            }
+                            
+                    )
+        else:
+              work_order_doc.append("custom_work_order_containers_reserved",
+                        {
+                            "item_code":item.item_code,
+                            "qty_as_per_work_order":str(item.required_qty)+" "+primary_uom,
+                            "transfered_qty":str(item.transferred_qty)+" "+primary_uom,
+                            "transfered_qty_in_tertiary_uom":0
+                        }
+                        
+                )
+    work_order_doc.save()
+
+@frappe.whitelist()
+def delete_reserved_containers(work_order):
+    reserved_details=frappe.db.get_all("Work Order Containers Reserved",filters={"parent":work_order},fields={'*'})
+    if len(reserved_details)>0:
+          for detail in reserved_details:
+                wo_sn=frappe.get_doc("Work Order Containers Reserved",detail.name)
+                wo_sn.db_set('docstatus',2)
+                frappe.delete_doc("Work Order Containers Reserved",detail.name)
