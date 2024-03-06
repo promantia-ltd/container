@@ -8,15 +8,53 @@ frappe.ui.form.on('Stock Entry', {
 			}
 		if(frm.doc.stock_entry_type=="Material Transfer for Manufacture"){
 		const container_used=[];
+		const item_list=[];
 			if(frm.doc.bom_no){
 				frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
 					frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
 					cur_frm.clear_table("items");
-					let warehouse_list=[]
+					
 					let target_warehouse=""
+					const item_operation_list=[]					
+					var total_qty=0;
+					var no_of_inputs=1;
+					let warehouse_list=[]
+					let machine_loaded=true
 					let tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
-						$.each(tabletransfer.items, function(index, detail){	
-							for (let i=0;i<detail.no_of_inputs;i++){
+						$.each(tabletransfer.items, function(index, detail){
+							no_of_inputs=detail.no_of_inputs
+							machine_loaded=true
+							total_qty=detail.stock_qty
+								frappe.db.get_value("Item",detail.item_code,"machine_loaded",(i)=>{
+									if(i.machine_loaded=="Not Machine Loaded Container"){
+										machine_loaded=false
+										let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
+										total_qty=detail.stock_qty
+										//get the total qty in the BOM for a combination of Item code and Operation
+										$.each(tabletransferinside.items, function(index2, detail2){
+											if(detail.idx!=detail2.idx){
+											if(detail2.item_code==detail.item_code && detail2.operation==detail.operation){
+												total_qty=total_qty+detail2.stock_qty
+											}
+											}	
+										})
+										no_of_inputs=1
+										
+									}
+	
+								var comb_exists=false
+						//check if the item code and operation combination exists
+						for (let op = 0; op < item_operation_list.length; op++) {
+							if(item_operation_list[op][0]==detail.item_code && item_operation_list[op][1]==detail.operation)
+							{
+								comb_exists=true
+							}
+							
+						}
+						//check if the item code and operation combination exists then skip the item line creation in SE item table	
+						if(comb_exists==false){
+							for (let i=0;i<no_of_inputs;i++){
+								
 							target_warehouse=""
 							frappe.call({
 								method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
@@ -40,7 +78,7 @@ frappe.ui.form.on('Stock Entry', {
 									item:detail.item_code,
 									warehouse:w.source_warehouse,
 									t_warehouse:target_warehouse,
-									qty:((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs,	
+									qty:((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs,	
 									container_used:container_used,
 									uom:detail.uom,
 									work_order:frm.doc.work_order
@@ -57,12 +95,12 @@ frappe.ui.form.on('Stock Entry', {
 												child.t_warehouse=r.message.target.t_warehouse;
 												child.item_code=detail.item_code;
 												child.item_name=detail.item_name;
-												child.required_qty=(detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty/detail.no_of_inputs;
+												child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
 												child.basic_rate=detail.rate;
 												child.uom=detail.uom;
 												child.stock_uom=detail.stock_uom;
 												child.conversion_factor=detail.conversion_factor;
-												child.transfer_qty=detail.stock_qty;
+												child.transfer_qty=total_qty;
 												let container_no="";
 												let qty=0;
 												let available_qty_use="";
@@ -92,7 +130,7 @@ frappe.ui.form.on('Stock Entry', {
 												child.uom=detail.uom;
 												child.stock_uom=detail.stock_uom;
 												child.conversion_factor=detail.conversion_factor;
-												child.transfer_qty=detail.stock_qty;
+												child.transfer_qty=total_qty;
 												let container_no="";
 												let qty=0;
 												let available_qty_use="";
@@ -122,12 +160,12 @@ frappe.ui.form.on('Stock Entry', {
 										child.t_warehouse=r.message.target.t_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
-										child.required_qty=(detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty/detail.no_of_inputs;
+										child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.uom;
 										child.stock_uom=detail.stock_uom;
 										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=detail.stock_qty;
+										child.transfer_qty=total_qty;
 										let container_no="";
 										let qty=0;
 										let available_qty_use="";
@@ -152,12 +190,12 @@ frappe.ui.form.on('Stock Entry', {
 										child.t_warehouse=r.message.source.t_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
-										child.required_qty=(detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty/detail.no_of_inputs;
+										child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.uom;
 										child.stock_uom=detail.stock_uom;
 										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=detail.stock_qty;
+										child.transfer_qty=total_qty;
 										let container_no="";
 										let qty=0;
 										let available_qty_use="";
@@ -183,16 +221,24 @@ frappe.ui.form.on('Stock Entry', {
 										child.t_warehouse=target_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
-										child.required_qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
-										child.qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
+										child.required_qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
+										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.stock_uom;
 										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=detail.stock_qty;
+										child.transfer_qty=total_qty;
 									}
 							}
 							});
 						}
+					}
+					//check if the item code and operation combination does not exist then append it in the array
+					if(comb_exists==false){ 
+							item_operation_list.push([detail.item_code,detail.operation])
+					}
+					
+									
+				})
 						})
 					})
 				})
@@ -207,6 +253,7 @@ frappe.ui.form.on('Stock Entry', {
 				if(frm.doc.bom_no){
 					frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
 						frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
+							
 							$.each(frm.doc.items, function(idx, item){
 								if(item.is_finished_item==1){
 									finished_item=item
@@ -216,9 +263,43 @@ frappe.ui.form.on('Stock Entry', {
 						cur_frm.clear_table("items");
 						let warehouse_list=[]
 						let target_warehouse=""
+						const item_operation_list=[]					
+						var total_qty=0;
+						var no_of_inputs=1;
+						let machine_loaded=true
 						var tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
 							$.each(tabletransfer.items, function(index, detail){	
-							for(let i=0;i<detail.no_of_inputs;i++){
+								no_of_inputs=detail.no_of_inputs
+							machine_loaded=true
+							total_qty=detail.stock_qty
+							frappe.db.get_value("Item",detail.item_code,"machine_loaded",(i)=>{
+								if(i.machine_loaded=="Not Machine Loaded Container"){
+									machine_loaded=false
+									let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
+									total_qty=detail.stock_qty
+									//get the total qty in the BOM for a combination of Item code and Operation
+									$.each(tabletransferinside.items, function(index2, detail2){
+										if(detail.idx!=detail2.idx){
+										if(detail2.item_code==detail.item_code && detail2.operation==detail.operation){
+											total_qty=total_qty+detail2.stock_qty
+										}
+										}	
+									})
+									no_of_inputs=1
+									
+								}
+								var comb_exists=false
+								//check if the item code and operation combination exists
+								for (let op = 0; op < item_operation_list.length; op++) {
+									if(item_operation_list[op][0]==detail.item_code && item_operation_list[op][1]==detail.operation)
+									{
+										comb_exists=true
+									}
+									
+								}
+								//check if the item code and operation combination exists then skip the item line creation in SE item table	
+								if(comb_exists==false){
+							for(let i=0;i<no_of_inputs;i++){
 								target_warehouse=""
 								frappe.call({
 									method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
@@ -241,7 +322,7 @@ frappe.ui.form.on('Stock Entry', {
 									args:{
 										item:detail.item_code,
 										warehouse:target_warehouse,
-										qty:((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs,
+										qty:((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs,
 										work_order:frm.doc.work_order,
 										container_used:container_used,
 										uom:detail.uom
@@ -254,13 +335,13 @@ frappe.ui.form.on('Stock Entry', {
 										child.s_warehouse=target_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
-										child.required_qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
-										child.qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
+										child.required_qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
+										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.stock_uom;
 										child.stock_uom=detail.stock_uom;
 										child.conversion_factor=1;
-										child.transfer_qty=detail.stock_qty;
+										child.transfer_qty=total_qty;
 										var uom_conversion_factor=1
 										frappe.model.with_doc("Item", child.item_code, function() {
 											var tabletransfer= frappe.model.get_doc("Item", child.item_code)
@@ -293,15 +374,21 @@ frappe.ui.form.on('Stock Entry', {
 										child.s_warehouse=target_warehouse;
 										child.item_code=detail.item_code;
 										child.item_name=detail.item_name;
-										child.qty=((detail.stock_qty/c.quantity)*frm.doc.fg_completed_qty)/detail.no_of_inputs;
+										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
 										child.basic_rate=detail.rate;
 										child.uom=detail.stock_uom;
 										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=detail.stock_qty;
+										child.transfer_qty=total_qty;
 									}
 								}
 								});
-							}
+							}//end no of inputs
+						}
+						//check if the item code and operation combination does not exist then append it in the array
+					if(comb_exists==false){ 
+						item_operation_list.push([detail.item_code,detail.operation])
+				}
+							})
 							})
 							var fin_child=frm.add_child("items");
 							fin_child.t_warehouse=finished_item.t_warehouse;
