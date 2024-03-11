@@ -33,7 +33,7 @@ frappe.ui.form.on('Stock Entry', {
 										//get the total qty in the BOM for a combination of Item code and Operation
 										$.each(tabletransferinside.items, function(index2, detail2){
 											if(detail.idx!=detail2.idx){
-											if(detail2.item_code==detail.item_code && detail2.operation==detail.operation){
+											if(detail2.item_code==detail.item_code){
 												total_qty=total_qty+detail2.stock_qty
 											}
 											}	
@@ -45,7 +45,7 @@ frappe.ui.form.on('Stock Entry', {
 								var comb_exists=false
 						//check if the item code and operation combination exists
 						for (let op = 0; op < item_operation_list.length; op++) {
-							if(item_operation_list[op][0]==detail.item_code && item_operation_list[op][1]==detail.operation)
+							if(item_operation_list[op][0]==detail.item_code)
 							{
 								comb_exists=true
 							}
@@ -234,7 +234,7 @@ frappe.ui.form.on('Stock Entry', {
 					}
 					//check if the item code and operation combination does not exist then append it in the array
 					if(comb_exists==false){ 
-							item_operation_list.push([detail.item_code,detail.operation])
+							item_operation_list.push([detail.item_code])
 					}
 					
 									
@@ -280,7 +280,7 @@ frappe.ui.form.on('Stock Entry', {
 									//get the total qty in the BOM for a combination of Item code and Operation
 									$.each(tabletransferinside.items, function(index2, detail2){
 										if(detail.idx!=detail2.idx){
-										if(detail2.item_code==detail.item_code && detail2.operation==detail.operation){
+										if(detail2.item_code==detail.item_code){
 											total_qty=total_qty+detail2.stock_qty
 										}
 										}	
@@ -291,7 +291,7 @@ frappe.ui.form.on('Stock Entry', {
 								var comb_exists=false
 								//check if the item code and operation combination exists
 								for (let op = 0; op < item_operation_list.length; op++) {
-									if(item_operation_list[op][0]==detail.item_code && item_operation_list[op][1]==detail.operation)
+									if(item_operation_list[op][0]==detail.item_code)
 									{
 										comb_exists=true
 									}
@@ -386,7 +386,7 @@ frappe.ui.form.on('Stock Entry', {
 						}
 						//check if the item code and operation combination does not exist then append it in the array
 					if(comb_exists==false){ 
-						item_operation_list.push([detail.item_code,detail.operation])
+						item_operation_list.push([detail.item_code])
 				}
 							})
 							})
