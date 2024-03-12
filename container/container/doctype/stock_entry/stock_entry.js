@@ -25,8 +25,9 @@ frappe.ui.form.on('Stock Entry', {
 							no_of_inputs=detail.no_of_inputs
 							machine_loaded=true
 							total_qty=detail.stock_qty
-								frappe.db.get_value("Item",detail.item_code,"machine_loaded",(i)=>{
-									if(i.machine_loaded=="Not Machine Loaded Container"){
+
+								frappe.db.get_value("Item",detail.item_code,"machine_loaded",(ml)=>{
+									if(ml.machine_loaded=="Not Machine Loaded Container"){
 										machine_loaded=false
 										let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
 										total_qty=detail.stock_qty
@@ -52,7 +53,10 @@ frappe.ui.form.on('Stock Entry', {
 							
 						}
 						//check if the item code and operation combination exists then skip the item line creation in SE item table	
-						if(comb_exists==false){
+						if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
+							if(ml.machine_loaded=="Machine Loaded Container"){
+								total_qty=detail.stock_qty
+							}
 							for (let i=0;i<no_of_inputs;i++){
 								
 							target_warehouse=""
@@ -272,8 +276,8 @@ frappe.ui.form.on('Stock Entry', {
 								no_of_inputs=detail.no_of_inputs
 							machine_loaded=true
 							total_qty=detail.stock_qty
-							frappe.db.get_value("Item",detail.item_code,"machine_loaded",(i)=>{
-								if(i.machine_loaded=="Not Machine Loaded Container"){
+							frappe.db.get_value("Item",detail.item_code,"machine_loaded",(ml)=>{
+								if(ml.machine_loaded=="Not Machine Loaded Container"){
 									machine_loaded=false
 									let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
 									total_qty=detail.stock_qty
@@ -298,8 +302,11 @@ frappe.ui.form.on('Stock Entry', {
 									
 								}
 								//check if the item code and operation combination exists then skip the item line creation in SE item table	
-								if(comb_exists==false){
-							for(let i=0;i<no_of_inputs;i++){
+								if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
+									if(ml.machine_loaded=="Machine Loaded Container"){
+										total_qty=detail.stock_qty
+									}
+								for(let i=0;i<no_of_inputs;i++){
 								target_warehouse=""
 								frappe.call({
 									method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
