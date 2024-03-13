@@ -56,9 +56,10 @@ frappe.ui.form.on('Stock Entry', {
 						if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
 							if(ml.machine_loaded=="Machine Loaded Container"){
 								total_qty=detail.stock_qty
+								no_of_inputs=detail.no_of_inputs
 							}
 							for (let i=0;i<no_of_inputs;i++){
-								
+								no_of_inputs=detail.no_of_inputs
 							target_warehouse=""
 							frappe.call({
 								method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
@@ -305,6 +306,7 @@ frappe.ui.form.on('Stock Entry', {
 								if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
 									if(ml.machine_loaded=="Machine Loaded Container"){
 										total_qty=detail.stock_qty
+										no_of_inputs=detail.no_of_inputs
 									}
 								for(let i=0;i<no_of_inputs;i++){
 								target_warehouse=""
