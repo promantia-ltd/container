@@ -116,7 +116,13 @@ def on_cancel(self,method=None):
      for item in self.get('items'):
         item_container=item.containers
         if item_container:
-            container_no_list.extend(item_container.split("\n"))
+            containers=item_container.split("\n")
+            for container in containers:
+                if frappe.db.get_value("Container", {'name':container}, "warehouse")!=item.warehouse:
+                    frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
+                elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
+                    frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
+                container_no_list.extend(item_container.split("\n"))
      for container in container_no_list:
         sp_doc=frappe.get_doc(container_no_doc,container)
         sp_doc.db_set("status","Inactive")
