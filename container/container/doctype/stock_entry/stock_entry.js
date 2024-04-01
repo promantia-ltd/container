@@ -21,7 +21,9 @@ frappe.ui.form.on('Stock Entry', {
 					let warehouse_list=[]
 					let machine_loaded=true
 					let tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
+					let item_sequence=1
 						$.each(tabletransfer.items, function(index, detail){
+							if(item_sequence==detail.custom_sequence_order){
 							no_of_inputs=detail.no_of_inputs
 							machine_loaded=true
 							total_qty=detail.stock_qty
@@ -244,7 +246,12 @@ frappe.ui.form.on('Stock Entry', {
 					
 									
 				})
-						})
+				item_sequence=item_sequence+1
+							}
+							else{
+								frappe.throw('Incorrect Sequence. Please reload Wo and try again')
+							}
+						}) // end of for loop of items table
 					})
 				})
 			}

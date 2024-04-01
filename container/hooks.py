@@ -61,7 +61,7 @@ doctype_js = {
     "Item Group":"container/doctype/item_group/item_group.js",
     "Warehouse":"container/doctype/warehouse/warehouse.js"
     }
-# doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
+doctype_list_js = {"Stock Entry" : "container/doctype/stock_entry/stock_entry_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -175,7 +175,11 @@ doc_events = {
     
     "Stock Reconciliation":{
 		"on_submit" : "container.container.doctype.stock_reconciliation.stock_reconciliation.on_submit"
-	}
+	},
+    "BOM":{
+        "validate": "container.container.doctype.bom.bom.validate",
+
+    }
 }
 
 # Scheduled Tasks

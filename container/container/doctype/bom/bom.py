@@ -65,5 +65,13 @@ def get_bom_material_detail(self, args=None):
         ret_item["bom_no"] = ""
 
     return ret_item
+    
+
+def validate(doc,method):
+    sequence_order=1
+    for item in doc.items:
+        if item.custom_sequence_order==0:
+            item.custom_sequence_order=sequence_order
+        sequence_order=sequence_order+1
 
     
