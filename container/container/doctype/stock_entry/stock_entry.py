@@ -539,7 +539,7 @@ def validate(doc,method):
 							stock_reserved_details=frappe.db.get_all("Stock Details",filters={'parent': cont,'reserved_qty':['>',0]},fields={'name'})
 							if len(stock_reserved_details) > 0:
 								frappe.throw("The container "+"<a href='/app/container/"+cont+"'>"+cont+"</a>" + " is reserved,so you can't transfer it.")
-		if doc.stock_entry_type!="Material Transfer for Manufacture" or doc.stock_entry_type!="Manufacture":
+		if doc.stock_entry_type!="Material Transfer for Manufacture" and doc.stock_entry_type!="Manufacture":
 			#fetch the qty based on the container selected
 			for item in doc.items:
 				if frappe.db.get_value("Item", {'name':item.item_code}, "is_containerized")==1:
