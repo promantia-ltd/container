@@ -1222,5 +1222,6 @@ def partially_reserved():
 	except Exception as e:
 		return 1
 	
-
-
+@frappe.whitelist()
+def support_continuous_item_mapping():
+	return True
