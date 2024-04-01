@@ -24,6 +24,12 @@ frappe.ui.form.on('Stock Entry', {
 					let item_sequence=1
 						$.each(tabletransfer.items, function(index, detail){
 							if(item_sequence==detail.custom_sequence_order){
+							frappe.call({
+								method:"container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping",
+								async:false,
+								callback: function(r){
+
+							
 							no_of_inputs=detail.no_of_inputs
 							machine_loaded=true
 							total_qty=detail.stock_qty
@@ -247,10 +253,13 @@ frappe.ui.form.on('Stock Entry', {
 									
 				})
 				item_sequence=item_sequence+1
+			}
+		})
 							}
 							else{
 								frappe.throw('Incorrect Sequence. Please reload Wo and try again')
 							}
+						
 						}) // end of for loop of items table
 					})
 				})
