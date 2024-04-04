@@ -31,11 +31,11 @@ class SerialNoQtyError(frappe.ValidationError):
 from erpnext.manufacturing.doctype.work_order.work_order import WorkOrder
 from container.container.doctype.stock_entry.stock_entry import reserve_once
 
-precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
-if not precision:
-    precision = 4
-else:
-     precision = int(precision)   
+# precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
+# if not precision:
+#     precision = 4
+# else:
+#      precision = int(precision)   
 
 @frappe.whitelist()
 def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
@@ -288,3 +288,30 @@ def delete_reserved_containers(work_order):
                 wo_sn=frappe.get_doc("Work Order Containers Reserved",detail.name)
                 wo_sn.db_set('docstatus',2)
                 frappe.delete_doc("Work Order Containers Reserved",detail.name)
+
+@frappe.whitelist()
+def unreserve_stock(work_order):
+    unreserved_count=0
+    comment="Unreserved Qty:<br>"
+    stock_details=frappe.db.get_all('Stock Details',filters={'reserved_qty':['>',0],'work_order': work_order},fields={'name','parent'})
+    for detail in stock_details:
+        unreserved_count=unreserved_count+1
+        stock_detail_doc=frappe.get_doc('Stock Details',detail['name'])
+        container_doc=frappe.get_doc('Container',detail['parent'])
+        secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':container_doc.item_code,'uom_type':'Secondary UOM'},fields={'*'})
+        secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
+        secondary_uom_qty=stock_detail_doc.reserved_qty/secondary_uom_conversion
+        reserved_qty=stock_detail_doc.reserved_qty
+        comment=comment+container_doc.warehouse+" : <a href='/app/serial-no/"+container_doc.name+"'>"+container_doc.name+"</a> : "+str(float(reserved_qty))+" "+container_doc.secondary_uom+"<br>"
+        stock_detail_doc.db_set('reserved_qty',0)
+        if float(reserved_qty)>=1:
+            container_doc.db_set('primary_available_qty',container_doc.primary_available_qty+float(reserved_qty))
+            container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty+secondary_uom_qty)
+        frappe.db.commit()
+    add_comment('Work Order',work_order,comment)
+    if unreserved_count>0:
+        frappe.msgprint('Stock Unreserved Successfully')
+    else:
+        frappe.msgprint('No reserved stock to Unreserve')
+    delete_reserved_containers(work_order)
+    update_reserved_containers(work_order)
