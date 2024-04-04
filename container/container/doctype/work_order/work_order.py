@@ -31,11 +31,11 @@ class SerialNoQtyError(frappe.ValidationError):
 from erpnext.manufacturing.doctype.work_order.work_order import WorkOrder
 from container.container.doctype.stock_entry.stock_entry import reserve_once
 
-# precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
-# if not precision:
-#     precision = 4
-# else:
-#      precision = int(precision)   
+precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
+if not precision:
+    precision = 4
+else:
+     precision = int(precision)   
 
 @frappe.whitelist()
 def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
