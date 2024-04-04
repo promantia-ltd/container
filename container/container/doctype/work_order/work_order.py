@@ -304,7 +304,7 @@ def unreserve_stock(work_order):
         reserved_qty=stock_detail_doc.reserved_qty
         comment=comment+container_doc.warehouse+" : <a href='/app/serial-no/"+container_doc.name+"'>"+container_doc.name+"</a> : "+str(float(reserved_qty))+" "+container_doc.secondary_uom+"<br>"
         stock_detail_doc.db_set('reserved_qty',0)
-        if float(reserved_qty)>=1:
+        if float(reserved_qty)>0:
             container_doc.db_set('primary_available_qty',container_doc.primary_available_qty+float(reserved_qty))
             container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty+secondary_uom_qty)
         frappe.db.commit()
