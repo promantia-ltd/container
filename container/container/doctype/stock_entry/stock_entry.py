@@ -22,7 +22,8 @@ work_order_doctype = "Work Order"
 material_request_doctype = "Material Request"
 container_doctype = "Container"
 
-precision = frappe.db.get_single_value('Container Settings', 'container_precision')
+# precision = frappe.db.get_single_value('Container Settings', 'container_precision')
+precision=4
 if not precision:
     precision = 4
 else:
@@ -587,7 +588,7 @@ def on_cancel(doc, method):
 
 									if has_partially_reserved:
 										#check if any other workorder is received in this serial no
-										other_reserved_stock_details=frappe.db.get_all("Stock Details",filters={'parent':container_doc.name,'reserved_qty':['>',1]},fields={'*'})
+										other_reserved_stock_details=frappe.db.get_all("Stock Details",filters={'parent':container_doc.name,'reserved_qty':['>',1],'work_order': ['!=',doc.work_order],'warehouse': ['!=',item.s_warehouse]},fields={'*'})
 
 										reserved_qty = flt(stock_detail_doc.reserved_qty, precision) - flt(qty_assigned[index], precision)
 
