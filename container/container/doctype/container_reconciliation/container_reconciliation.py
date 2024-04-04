@@ -19,6 +19,9 @@ def get_new_containers(item,count):
 		hash_count=series.count('#')
 		prefix=series.split(".#")
 		serial_no_list=[]
+		Series = frappe.qb.DocType("Series")
+		if frappe.db.get_value("Series", str(prefix[0]), "name", order_by="name") is None:
+			frappe.qb.into(Series).insert(str(prefix[0]), 0).columns("name", "current").run()
 		current=cint(frappe.db.get_value("Series", str(prefix[0]), "current", order_by="name"))+1
 		for i in range(0,int(count)):
 			number_part=str(i+current).zfill(hash_count)
