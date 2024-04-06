@@ -40,7 +40,7 @@ def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, wor
 	qty_in_bom_uom =[]
 
 	item_doc = frappe.get_doc("Item", item)
-
+	container_data['scrap_qty']=item_doc.ignore_scrap_qty
 	if item_doc.is_containerized == 1:
 		uom_list = frappe.db.get_all("UOM Conversion Detail", filters={'parenttype': 'Item', 'parent': item, 'uom': uom}, fields={'*'})
 		stock_qty = flt(qty) / flt(uom_list[0].conversion_factor)
