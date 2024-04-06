@@ -122,7 +122,10 @@ frappe.ui.form.on('Stock Entry', {
 													container_no=container_no+String(r.message.target.container_no[i])+","
 													available_qty=available_qty+String(r.message.target.primary_available_qty[i])+","
 													available_qty_use=available_qty_use+String(r.message.target.primary_available_qty_used[i])+","
-													qty=qty + r.message.target.qty_in_bom_uom[i]
+													if(r.message.scrap_qty==1){qty=qty + r.message.target.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
+											else{qty=qty + r.message.target.qty_in_bom_uom[i]}
+
+													
 												}
 												child.containers=container_no
 												child.qty=qty
@@ -153,7 +156,8 @@ frappe.ui.form.on('Stock Entry', {
 													container_no=container_no+String(r.message.source.container_no[i])+",";
 													available_qty=available_qty+String(r.message.source.primary_available_qty[i])+",";
 													available_qty_use=available_qty_use+String(r.message.source.primary_available_qty_used[i])+",";
-													qty=qty + r.message.source.qty_in_bom_uom[i];
+													if(r.message.scrap_qty==1){qty=qty + r.message.source.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
+											else{qty=qty + r.message.source.qty_in_bom_uom[i]}
 													required_qty = required_qty + r.message.source.primary_available_qty_used[i]
 												}
 												child.containers=container_no;
@@ -187,7 +191,8 @@ frappe.ui.form.on('Stock Entry', {
 											container_no=container_no+String(r.message.target.container_no[i])+","
 											available_qty=available_qty+String(r.message.target.primary_available_qty[i])+","
 											available_qty_use=available_qty_use+String(r.message.target.primary_available_qty_used[i])+","
-											qty=qty + r.message.target.qty_in_bom_uom[i]
+											if(r.message.scrap_qty==1){qty=qty + r.message.target.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
+											else{qty=qty + r.message.target.qty_in_bom_uom[i]}
 										}
 										child.containers=container_no
 										child.qty=qty
@@ -217,7 +222,9 @@ frappe.ui.form.on('Stock Entry', {
 											container_no=container_no+String(r.message.source.container_no[i])+","
 											available_qty=available_qty+String(r.message.source.primary_available_qty[i])+","
 											available_qty_use=available_qty_use+String(r.message.source.primary_available_qty_used[i])+","
-											qty=qty + r.message.source.qty_in_bom_uom[i]
+											if(r.message.scrap_qty==1){qty=qty + r.message.source.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
+											else{qty=qty + r.message.source.qty_in_bom_uom[i]}
+											
 										}
 										child.containers=container_no
 										child.qty=qty
