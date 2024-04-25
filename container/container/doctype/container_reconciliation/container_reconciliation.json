@@ -124,6 +124,7 @@
    "search_index": 1
   },
   {
+   "allow_bulk_edit": 1,
    "fieldname": "new_container_nos",
    "fieldtype": "Table",
    "label": "New Container Nos",
@@ -133,7 +134,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-02-12 12:43:48.277308",
+ "modified": "2024-04-08 18:00:48.216009",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container Reconciliation",

@@ -209,6 +209,7 @@ def reserve_once(item_doc, work_order):
 
     return reserved_containers
 
+
 def used_containers(container_used):
     return [each for val in container_used for each in val]
 
@@ -661,7 +662,7 @@ def on_cancel(doc, method):
 									else:     
 										stock_detail_doc.db_set('is_reserved', 0)
 
-								if not stock_detail_doc.is_reserved  and stock_detail_doc.reserved_qty == 0 and stock_detail_doc.consumed_qty == 0:
+								if not stock_detail_doc.is_reserved and stock_detail_doc.reserved_qty == 0 and stock_detail_doc.consumed_qty == 0:
 									delete_doc("Stock Details", stock_detail_doc.name)
 									frappe.db.commit()
 
@@ -680,13 +681,11 @@ def on_cancel(doc, method):
 
 		if doc.stock_entry_type == "Manufacture":
 			for item in doc.items:
-				if item.is_finished_item != 1:
-					container_no_list = get_serial_nos(item.containers)
-					secondary_uom_conversion, primary_uom_conversion = get_uom_conversion(item)
+				item_doc = get_doc("Item", item.item_code)
+				if item.is_finished_item != 1 and item_doc.is_containerized == 1:
+						container_no_list = get_serial_nos(item.containers)
+						secondary_uom_conversion, primary_uom_conversion = get_uom_conversion(item)
 
-					item_doc = get_doc("Item", item.item_code)
-
-					if item_doc.is_containerized == 1:
 						try:
 							reserved_qty=item.available_qty_use.split(",")
 						except Exception as e:
