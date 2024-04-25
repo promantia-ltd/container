@@ -30,5 +30,21 @@
   "property_type": "Check",
   "row_name": null,
   "value": "1"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Work Order",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "use_multi_level_bom",
+  "is_system_generated": 0,
+  "modified": "2024-04-08 18:01:40.438663",
+  "module": "Container",
+  "name": "Work Order-use_multi_level_bom-default",
+  "property": "default",
+  "property_type": "Text",
+  "row_name": null,
+  "value": "0"
  }
 ]

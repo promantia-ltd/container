@@ -12,8 +12,7 @@ frappe.ui.form.on('Stock Entry', {
 			if(frm.doc.bom_no){
 				frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
 					frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
-					cur_frm.clear_table("items");
-					
+					cur_frm.clear_table("items");	
 					let target_warehouse=""
 					const item_operation_list=[]					
 					var total_qty=0;
@@ -295,8 +294,14 @@ frappe.ui.form.on('Stock Entry', {
 						var total_qty=0;
 						var no_of_inputs=1;
 						let machine_loaded=true
+						let item_sequence=1
 						var tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
 							$.each(tabletransfer.items, function(index, detail){	
+								if(item_sequence==detail.custom_sequence_order){
+									frappe.call({
+										method:"container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping",
+										async:false,
+										callback: function(r){
 								no_of_inputs=detail.no_of_inputs
 							machine_loaded=true
 							total_qty=detail.stock_qty
@@ -421,7 +426,14 @@ frappe.ui.form.on('Stock Entry', {
 						item_operation_list.push([detail.item_code])
 				}
 							})
-							})
+							item_sequence=item_sequence+1	
+										}
+									})
+						}
+						else{
+							frappe.throw('Incorrect Sequence. Please reload Wo and try again')
+						}
+							})//end of for loop
 							var fin_child=frm.add_child("items");
 							fin_child.t_warehouse=finished_item.t_warehouse;
 							fin_child.is_finished_item=finished_item.is_finished_item;
