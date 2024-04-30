@@ -1,5 +1,5 @@
-from . import __version__ as app_version
 import erpnext.controllers.status_updater as _standard_updator
+
 from container.api import StatusUpdaterCustom as _custom_updator
 
 app_name = "container"
@@ -18,19 +18,9 @@ _standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_cr
 # Includes in <head>
 # ------------------
 
-fixtures=[
-{
-    "dt": "Custom Field",
-	"filters":[
-        ["module","=", "Container"]
-    ]
-},
-{
-    "dt": 'Property Setter',
-	"filters": [
-        ["module","=", "Container"]
-    ]
-},
+fixtures = [
+    {"dt": "Custom Field", "filters": [["module", "=", "Container"]]},
+    {"dt": "Property Setter", "filters": [["module", "=", "Container"]]},
 ]
 
 # include js, css files in header of desk.html
@@ -53,15 +43,16 @@ app_include_js = "/assets/container/js/multi_select_dialog.js"
 
 # include js in doctype views
 doctype_js = {
-    "Work Order" : "container/doctype/work_order/work_order.js",
-    "Stock Entry":"container/doctype/stock_entry/stock_entry.js",
-    "Purchase Receipt":"container/doctype/purchase_receipt/purchase_receipt.js",
-    "Stock Reconciliation":"container/doctype/stock_reconciliation/stock_reconciliation.js",
-    "Item":"container/doctype/item/item.js",
-    "Item Group":"container/doctype/item_group/item_group.js",
-    "Warehouse":"container/doctype/warehouse/warehouse.js"
-    }
-doctype_list_js = {"Stock Entry" : "container/doctype/stock_entry/stock_entry_list.js"}
+    "Work Order": "container/doctype/work_order/work_order.js",
+    "Stock Entry": "container/doctype/stock_entry/stock_entry.js",
+    "Purchase Receipt": "container/doctype/purchase_receipt/purchase_receipt.js",
+    "Stock Reconciliation": "container/doctype/stock_reconciliation/stock_reconciliation.js",
+    "Item": "container/doctype/item/item.js",
+    "Item Group": "container/doctype/item_group/item_group.js",
+    "Warehouse": "container/doctype/warehouse/warehouse.js",
+    "Pick List": "container/doctype/pick_list/pick_list.js",
+}
+doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -155,52 +146,55 @@ doctype_list_js = {"Stock Entry" : "container/doctype/stock_entry/stock_entry_li
 # Hook on document methods and events
 
 doc_events = {
-"Stock Entry":{
-    "on_submit":[
-				"container.api.on_submit",
-                "container.container.doctype.stock_entry.stock_entry.set_containers_status",
-                "container.container.doctype.stock_entry.stock_entry.after_submit",
-                ],
-		"validate": ["container.container.doctype.stock_entry.stock_entry.validate"],
-		"on_cancel": ["container.container.doctype.stock_entry.stock_entry.on_cancel"],
-		"before_submit": [
+    "Stock Entry": {
+        "on_submit": [
+            "container.api.on_submit",
+            "container.container.doctype.stock_entry.stock_entry.set_containers_status",
+            "container.container.doctype.stock_entry.stock_entry.after_submit",
+        ],
+        "validate": ["container.container.doctype.stock_entry.stock_entry.validate"],
+        "on_cancel": ["container.container.doctype.stock_entry.stock_entry.on_cancel"],
+        "before_submit": [
             "container.container.doctype.stock_entry.stock_entry.before_submit"
-            ]
+        ],
     },
-"Purchase Receipt":{
-    "on_submit":"container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
-    "on_cancel":"container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
-    # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
+    "Purchase Receipt": {
+        "on_submit": "container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
+        "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
+        # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },
-    
-    "Stock Reconciliation":{
-		"on_submit" : "container.container.doctype.stock_reconciliation.stock_reconciliation.on_submit"
-	},
-    "BOM":{
+    "Stock Reconciliation": {
+        "on_submit": "container.container.doctype.stock_reconciliation.stock_reconciliation.on_submit"
+    },
+    "BOM": {
         "validate": "container.container.doctype.bom.bom.validate",
-
-    }
+    },
+    "Pick List": {
+        "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
+    },
+    "Delivery Note": {
+        "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
+        "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel"
+    },
 }
 
 # Scheduled Tasks
 # ---------------
 
 scheduler_events = {
-	# "all": [
-	# 	"container.tasks.all"
-	# ],
-	"daily": [
-		"container.api.daily_update_expiry_date"
-	],
-	# "hourly": [
-	# 	"container.tasks.hourly"
-	# ],
-	# "weekly": [
-	# 	"container.tasks.weekly"
-	# ],
-	# "monthly": [
-	# 	"container.tasks.monthly"
-	# ],
+    # "all": [
+    # 	"container.tasks.all"
+    # ],
+    "daily": ["container.api.daily_update_expiry_date"],
+    # "hourly": [
+    # 	"container.tasks.hourly"
+    # ],
+    # "weekly": [
+    # 	"container.tasks.weekly"
+    # ],
+    # "monthly": [
+    # 	"container.tasks.monthly"
+    # ],
 }
 
 # Testing
@@ -219,7 +213,7 @@ scheduler_events = {
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 override_doctype_dashboards = {
-	"Item": "container.container.doctype.item.item_dashboard.get_data"
+    "Item": "container.container.doctype.item.item_dashboard.get_data"
 }
 
 # exempt linked doctypes from being automatically cancelled
@@ -278,4 +272,3 @@ override_doctype_dashboards = {
 # default_log_clearing_doctypes = {
 # 	"Logging DocType Name": 30  # days to retain logs
 # }
-
