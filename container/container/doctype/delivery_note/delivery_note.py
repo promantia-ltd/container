@@ -96,7 +96,7 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             
             # Update container primary and secondary qty after consumption
             container_doc = frappe.get_doc("Container", container)
-            container_pending_qty = container_doc.primary_available_qty - qty_to_be_assigned
+            container_pending_qty = container_doc.primary_available_qty - container_consumed_qty
             container_doc.db_set('primary_available_qty', container_pending_qty)
             secondary_uom_conversion_value = frappe.db.get_value("UOM Conversion Detail", {
                 'parenttype': 'Item',
@@ -115,6 +115,7 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             delivery_note_doc = frappe.get_doc("Delivery Note", delivery_note_docname)
             comment = f"{container_doc.warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a> " + str(container_consumed_qty) + "<br>"
             delivery_note_doc.add_comment('Comment', comment)
+            qty_to_be_assigned = qty_to_be_assigned - container_consumed_qty
     frappe.db.commit()
 
 
