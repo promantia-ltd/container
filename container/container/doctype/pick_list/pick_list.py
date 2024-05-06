@@ -8,55 +8,53 @@ def calculate_the_total_standard_rate(doc, method):
         count = 1
         td_data = ""
         for each in doc.locations:
-            (
-                container_no,
-                primary_available_qty,
-                remaining_qty,
-                primary_available_qty_used,
-                transferred_qty,
-            ) = assign_containers(each, used, doc.work_order)
-            result_dict = {}
-            for i, container in enumerate(container_no):
-                container_data = frappe.db.sql(
-                    f"""
-                    select
-                    item_code,
-                    name,
-                    ifnull(warehouse,"") as warehouse,
-                    ifnull(base_expiry_date,"") as base_expiry_date,
-                    ifnull(expiry_date,"")as expiry_date ,
-                    ifnull(primary_available_qty,0) as primary_available_qty ,
-                    ifnull(primary_uom,"") as primary_uom
-                    from `tabContainer`
-                    where
-                    name ='{container}' """,
-                    as_dict=1,
-                )[0]
-
-                td_data = (
-                    td_data
-                    + f"""<tr>
-                    <td class="text-center text-muted">{count}</td>
-                    <td class="text-center text-muted"><a href="/app/item/{container_data["item_code"]}">{container_data["item_code"]}</a</td>
-                    <td class="text-center text-muted"><a href="/app/container/{container_data["name"]}">{container_data["name"]}</a{container_data["name"]}</td>
-                    <td class="text-center text-muted"><a href="/app/warehouse/{container_data["warehouse"]}">{container_data["warehouse"]}</a</td>
-                    <td class="text-center text-muted">{container_data["base_expiry_date"]}</td>
-                    <td class="text-center text-muted">{container_data["expiry_date"]}</td>
-                    <td class="text-center text-muted">{container_data["primary_available_qty"]}</td>
-                    <td class="text-center text-muted">{container_data["primary_uom"]}</td>
-                    </tr>"""
-                )
-                result_dict[container] = (
-                    primary_available_qty[i] if i < len(primary_available_qty) else ""
-                )
-                count += 1
-
-            if result_dict:
-                each.custom_containers = frappe.json.dumps(result_dict)
-
-            if primary_available_qty:
-                each.custom_container_qty = sum(primary_available_qty)
-
+            item_doc = frappe.get_doc("Item", each.item_code)
+            if item_doc.is_containerized:
+                (
+                    container_no,
+                    primary_available_qty,
+                    remaining_qty,
+                    primary_available_qty_used,
+                    transferred_qty,
+                ) = assign_containers(each, used, doc.work_order)
+                result_dict = {}
+                for i, container in enumerate(container_no):
+                    container_data = frappe.db.sql(
+                        f"""
+                        select
+                        item_code,
+                        name,
+                        ifnull(warehouse,"") as warehouse,
+                        ifnull(base_expiry_date,"") as base_expiry_date,
+                        ifnull(expiry_date,"")as expiry_date ,
+                        ifnull(primary_available_qty,0) as primary_available_qty ,
+                        ifnull(primary_uom,"") as primary_uom
+                        from `tabContainer`
+                        where
+                        name ='{container}' """,
+                        as_dict=1,
+                    )[0]
+                    td_data = (
+                        td_data
+                        + f"""<tr>
+                        <td class="text-center text-muted">{count}</td>
+                        <td class="text-center text-muted"><a href="/app/item/{container_data["item_code"]}">{container_data["item_code"]}</a</td>
+                        <td class="text-center text-muted"><a href="/app/container/{container_data["name"]}">{container_data["name"]}</a{container_data["name"]}</td>
+                        <td class="text-center text-muted"><a href="/app/warehouse/{container_data["warehouse"]}">{container_data["warehouse"]}</a</td>
+                        <td class="text-center text-muted">{container_data["base_expiry_date"]}</td>
+                        <td class="text-center text-muted">{container_data["expiry_date"]}</td>
+                        <td class="text-center text-muted">{container_data["primary_available_qty"]}</td>
+                        <td class="text-center text-muted">{container_data["primary_uom"]}</td>
+                        </tr>"""
+                    )
+                    result_dict[container] = (
+                        primary_available_qty[i] if i < len(primary_available_qty) else ""
+                    )
+                    count += 1
+                if result_dict:
+                    each.custom_containers = frappe.json.dumps(result_dict)
+                if primary_available_qty:
+                    each.custom_container_qty = sum(primary_available_qty)
         doc.custom_containers_information_text = td_data
     except Exception as e:
         doc.log_error(f"{doc.name}", e)
