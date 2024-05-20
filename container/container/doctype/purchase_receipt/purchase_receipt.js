@@ -6,6 +6,7 @@ frappe.ui.form.on('Purchase Receipt', {
 	},
 	refresh: function(frm,cdt,cdn){
 		if(frm.doc.button_hide!="1" && frm.doc.docstatus==1){
+		// if(frm.doc.docstatus==1){
 			frm.add_custom_button(__('Set Container Qty'), function(){
 				set_quantity_for_container_nos(frm.doc.items,frm);
 			})
@@ -79,6 +80,7 @@ function set_quantity_for_container_nos(items,frm){
 	let qty=[];
 	let uom=[];
 	let expiry_date=[];
+	let updated=[];
 	let item_list=[];
 	let is_container_no=false;
 	let has_bobbin=[];
@@ -109,12 +111,13 @@ function set_quantity_for_container_nos(items,frm){
 				uom.push(r.message[0])
 				qty.push(r.message[1])
 				expiry_date.push(r.message[2])
+				updated.push(r.message[3])
 			}
 		});
 	if(is_container_no==true){
 		let container_no_dict_total=[]
 		for (let i = 0; i < container_no_list.length; i++) {
-			let container_no_dict=[{'container_no':container_no_list[i],'container':dummy_containers[i],'item_code':item_list[i],'quantity':qty[0][i],'uom': uom[0][i],'expiry_date':expiry_date[0][i]}]
+			let container_no_dict=[{'container_no':container_no_list[i],'container':dummy_containers[i],'item_code':item_list[i],'quantity':qty[0][i],'uom': uom[0][i],'expiry_date':expiry_date[0][i],'updated':updated[0][i]}]
 			container_no_dict_total=container_no_dict_total.concat(container_no_dict)
 		}
 		let fields1 = [];
@@ -132,7 +135,7 @@ function set_quantity_for_container_nos(items,frm){
 				fieldname: 'container',
 				fieldtype: 'Data',
 				in_list_view: 1,
-			    columns:2
+			    columns:1
 
 			},
             {
@@ -141,7 +144,7 @@ function set_quantity_for_container_nos(items,frm){
 				fieldtype: 'Link',
 				options: 'Item',
 				in_list_view: 1,
-			columns:2,
+				columns:2,
 				read_only: 1,
 			},
 			{
@@ -151,7 +154,14 @@ function set_quantity_for_container_nos(items,frm){
 				in_list_view: 1,
 				reqd:1,
 				default:0,
-				columns:1
+				columns:1,
+				onchange: function (e) { 
+					let grid_row = $(e.target).closest('.grid-row');
+					let grid_row_index = grid_row.attr('data-idx') - 1;
+					let grid_data = cur_dialog.fields_dict.container_no_qty.grid.get_data();
+					grid_data[grid_row_index].updated = 1;
+					cur_dialog.fields_dict.container_no_qty.grid.refresh();
+				}
 			},
 			{
 				label: 'UOM',
@@ -162,6 +172,14 @@ function set_quantity_for_container_nos(items,frm){
 				reqd:1,
 				columns:1
 			},
+			{
+				label: 'Updated',
+				fieldname: 'updated',
+				fieldtype: 'Check',
+				default: 0,
+				in_list_view: 1,
+				columns:1
+			}
 		]
 		fields1=fields1.concat({label: 'Expiry Date',fieldname: 'expiry_date',fieldtype: 'Date',in_list_view: 1,columns:2,default:""})
 		let fields = [{
@@ -194,6 +212,7 @@ function set_quantity_for_container_nos(items,frm){
 						frappe.call({
 							method:"container.container.doctype.purchase_receipt.purchase_receipt.button_hide",
 									args:{
+										quantity:data,
 										name:frm.doc.name	
 									},
 									async:false,

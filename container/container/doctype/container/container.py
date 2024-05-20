@@ -35,7 +35,7 @@ class Container(Document):
 			self.status = "Expired"
 		elif self.slitted_container:
 			self.status = "Slitted"
-		else:
+		elif self.updated:
 			self.status = "Active"
 
 	def set_maintenance_status(self):
