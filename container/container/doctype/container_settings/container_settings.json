@@ -7,6 +7,7 @@
  "field_order": [
   "details_tab",
   "has_partially_reserved",
+  "allow_stock_reconciliation",
   "over_allowance",
   "column_break_vg2t",
   "container_precision"
@@ -40,12 +41,18 @@
    "fieldname": "details_tab",
    "fieldtype": "Tab Break",
    "label": "Details"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_stock_reconciliation",
+   "fieldtype": "Check",
+   "label": "Allow Stock Reconciliation for Containerized Items without Container Reconciliation"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2024-02-29 16:32:13.744705",
+ "modified": "2024-05-08 12:42:34.142270",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container Settings",
