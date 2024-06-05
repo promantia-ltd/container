@@ -19,7 +19,7 @@
   },
   {
    "fieldname": "containers",
-   "fieldtype": "Data",
+   "fieldtype": "Long Text",
    "in_list_view": 1,
    "label": "Containers"
   }
@@ -27,7 +27,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-01-08 22:55:24.093045",
+ "modified": "2024-06-05 17:02:23.871357",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container Details",
