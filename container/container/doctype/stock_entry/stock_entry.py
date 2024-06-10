@@ -400,7 +400,10 @@ def set_containers_status(doc, method):
 							if has_partially_reserved:
 								reserved_qty = stock_detail_doc.reserved_qty or 0 + flt(qty_assigned[index], precision)
 								stock_detail_doc.db_set('reserved_qty', reserved_qty)
-								container_doc.db_set("primary_available_qty", container_doc.primary_available_qty - reserved_qty)
+								primary_available = container_doc.primary_available_qty - reserved_qty
+								if primary_available!=0 and primary_available < 0.01:
+									primary_available = 0
+								container_doc.db_set("primary_available_qty", primary_available)
 								reserve_qty_str = "  Reserved Qty : " + str(flt(qty_assigned[index], precision))
 
 							else:
