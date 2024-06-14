@@ -305,7 +305,7 @@ def before_submit(doc, method):
                         available_qty = [flt(value, precision) for value in str(item.available_qty).split(',') if value]
                         total_available_qty = sum(available_qty)
 
-                        if flt(item.required_qty, 4) > flt(total_available_qty, 4):
+                        if flt(item.required_qty, 3) > flt(total_available_qty, 3):
                             raise LessQtyInContainers(f'Assigned containers have less quantity than required quantity at row {item.idx}')
 
     except (ContainersNotAssigned, LessQtyInContainers) as e:
@@ -343,7 +343,10 @@ def set_containers_status(doc, method):
 							if has_partially_reserved:
 								reserved_qty = stock_detail_doc.reserved_qty or 0 + flt(qty_assigned[index], precision)
 								stock_detail_doc.db_set('reserved_qty', reserved_qty)
-								container_doc.db_set("primary_available_qty", container_doc.primary_available_qty - reserved_qty)
+								used_qty=container_doc.primary_available_qty - reserved_qty
+								if used_qty<0:
+									used_qty=0
+								container_doc.db_set("primary_available_qty", used_qty)
 								reserve_qty_str = "  Reserved Qty : " + str(flt(qty_assigned[index], precision))
 
 							else:
@@ -359,7 +362,10 @@ def set_containers_status(doc, method):
 							if has_partially_reserved:
 								reserved_qty = flt(qty_assigned[index], precision)
 								container_doc.stock_details[-1].reserved_qty = reserved_qty
-								container_doc.db_set("primary_available_qty", container_doc.primary_available_qty - reserved_qty)
+								used_qty=container_doc.primary_available_qty - reserved_qty
+								if used_qty<0:
+									used_qty=0
+								container_doc.db_set("primary_available_qty", used_qty)
 								reserve_qty_str = "  Reserved Qty : " + str(reserved_qty)
 
 							else:
@@ -445,8 +451,9 @@ def set_containers_status(doc, method):
 	if doc.stock_entry_type=="Manufacture" and not doc.system_generated:
 		if doc.work_order:
 			for item in doc.items:
-				try:
+				try:	
 					if item.is_finished_item!=1:
+						required_qty=flt(item.transfer_qty)
 						item_doc=frappe.get_doc("Item",item.item_code)
 						if item_doc.is_containerized==1:
 							secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
@@ -478,17 +485,23 @@ def set_containers_status(doc, method):
 											if stock_detail_doc:
 												stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
 												if has_partially_reserved:
-													reserved_total = flt(stock_detail_doc.reserved_qty, precision) - flt(reserved_qty[i], precision)
-													if reserved_total < 0:
-														reserved_total = 0
-													consumed_qty = stock_detail_doc.consumed_qty or 0 + flt(stock_detail_doc.reserved_qty, precision)
-													stock_detail_doc.db_set('consumed_qty', consumed_qty)
-													stock_detail_doc.db_set('reserved_qty',reserved_total)
-													container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
-					
+													if required_qty>0:
+														if required_qty>=(flt(reserved_qty[i], precision)+0.001):
+															qty_used=flt(reserved_qty[i], precision)
+														else:
+															qty_used=required_qty
+														reserved_total = flt(stock_detail_doc.reserved_qty, precision) - flt(qty_used, precision)
+														if reserved_total < 0:
+															reserved_total = 0
+														required_qty=required_qty-qty_used
+														consumed_qty = (stock_detail_doc.consumed_qty or 0) + flt(qty_used, precision)
+														stock_detail_doc.db_set('consumed_qty', consumed_qty)
+														stock_detail_doc.db_set('reserved_qty',reserved_total)
+														container_doc.add_comment('Comment','Used qty: '+str(flt(flt(qty_used), precision))+' for transaction with Stock Entry: '+doc.name)
+						
 												else:
 													stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
-													stock_detail_doc.db_set('consumed_qty',stock_detail_doc.consumed_qty  or 0 + flt(reserved_qty[i], precision))
+													stock_detail_doc.db_set('consumed_qty',(stock_detail_doc.consumed_qty  or 0) + flt(reserved_qty[i], precision))
 													container_doc.db_set("primary_available_qty",container_doc.primary_available_qty - flt(reserved_qty[i], precision))
 													container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty - secondary_uom_qty)
 													container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
