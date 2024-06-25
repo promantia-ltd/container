@@ -540,7 +540,7 @@
   },
   {
    "fieldname": "container_details",
-   "fieldtype": "Text Editor",
+   "fieldtype": "Long Text",
    "label": "Container Details"
   },
   {
