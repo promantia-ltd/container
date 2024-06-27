@@ -1,679 +1,687 @@
 {
- "actions": [],
- "allow_import": 1,
- "autoname": "field:container_no",
- "creation": "2023-04-19 12:55:20.684005",
- "default_view": "List",
- "description": "Distinct unit of an Item",
- "doctype": "DocType",
- "document_type": "Setup",
- "engine": "InnoDB",
- "field_order": [
-  "details",
-  "column_break0",
-  "container_no",
-  "item_code",
-  "warehouse",
-  "batch_no",
-  "temperature",
-  "column_break1",
-  "item_name",
-  "description",
-  "item_group",
-  "brand",
-  "sales_order",
-  "aging_history_tab",
-  "base_expiry_date",
-  "base_expiry_date_in_days",
-  "column_break_eqxkm",
-  "expiry_date",
-  "rt_expiry_date_in_days",
-  "column_break_eo5gy",
-  "aging_history",
-  "purchase_details",
-  "column_break2",
-  "purchase_document_type",
-  "purchase_document_no",
-  "purchase_date",
-  "purchase_time",
-  "purchase_rate",
-  "column_break3",
-  "supplier",
-  "supplier_name",
-  "asset_details",
-  "asset",
-  "asset_status",
-  "column_break_24",
-  "delivery_details",
-  "delivery_document_type",
-  "delivery_document_no",
-  "delivery_date",
-  "delivery_time",
-  "secondary_uom",
-  "secondary_available_qty",
-  "column_break5",
-  "customer",
-  "customer_name",
-  "primary_uom",
-  "primary_available_qty",
-  "ignore_scrap_qty_01_kg",
-  "invoice_details",
-  "sales_invoice",
-  "stock_transactions_section",
-  "stock_details",
-  "warranty_amc_details",
-  "column_break6",
-  "warranty_expiry_date",
-  "amc_expiry_date",
-  "column_break7",
-  "maintenance_status",
-  "warranty_period",
-  "slitted_info_tab",
-  "slitted_container",
-  "column_break_mfudv",
-  "slitted_doc_ref",
-  "column_break_ujkzm",
-  "slitted_details",
-  "more_info",
-  "container_details",
-  "company",
-  "status",
-  "container_details_section",
-  "fg_item",
-  "used_containers",
-  "reference_section",
-  "initial_qty",
-  "uom",
-  "column_break_21qdz",
-  "sub_container",
-  "parent_ref",
-  "selected"
- ],
- "fields": [
-  {
-   "fieldname": "details",
-   "fieldtype": "Section Break",
-   "oldfieldtype": "Section Break"
-  },
-  {
-   "fieldname": "column_break0",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "container_no",
-   "fieldtype": "Data",
-   "label": "Container No",
-   "no_copy": 1,
-   "reqd": 1,
-   "unique": 1
-  },
-  {
-   "fieldname": "item_code",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Item Code",
-   "oldfieldname": "item_code",
-   "oldfieldtype": "Link",
-   "options": "Item",
-   "reqd": 1
-  },
-  {
-   "description": "Warehouse can only be changed via Stock Entry / Delivery Note / Purchase Receipt",
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Warehouse",
-   "no_copy": 1,
-   "oldfieldname": "warehouse",
-   "oldfieldtype": "Link",
-   "options": "Warehouse",
-   "read_only": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "batch_no",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Batch No",
-   "options": "Batch"
-  },
-  {
-   "fieldname": "temperature",
-   "fieldtype": "Link",
-   "label": "Temperature",
-   "options": "Storage Temperature",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "item_code.item_name",
-   "fieldname": "item_name",
-   "fieldtype": "Data",
-   "label": "Item Name",
-   "read_only": 1
-  },
-  {
-   "fetch_from": "item_code.description",
-   "fieldname": "description",
-   "fieldtype": "Text",
-   "label": "Description",
-   "oldfieldname": "description",
-   "oldfieldtype": "Text",
-   "read_only": 1,
-   "width": "300px"
-  },
-  {
-   "fetch_from": "item_code.item_group",
-   "fieldname": "item_group",
-   "fieldtype": "Link",
-   "label": "Item Group",
-   "oldfieldname": "item_group",
-   "oldfieldtype": "Link",
-   "options": "Item Group",
-   "read_only": 1
-  },
-  {
-   "fetch_from": "item_code.brand",
-   "fieldname": "brand",
-   "fieldtype": "Link",
-   "label": "Brand",
-   "oldfieldname": "brand",
-   "oldfieldtype": "Link",
-   "options": "Brand",
-   "read_only": 1
-  },
-  {
-   "fieldname": "sales_order",
-   "fieldtype": "Link",
-   "label": "Sales Order",
-   "options": "Sales Order"
-  },
-  {
-   "fieldname": "aging_history_tab",
-   "fieldtype": "Tab Break",
-   "label": "Aging History "
-  },
-  {
-   "fieldname": "base_expiry_date",
-   "fieldtype": "Datetime",
-   "label": "Base Expiry Date"
-  },
-  {
-   "depends_on": "base_expiry_date",
-   "fieldname": "base_expiry_date_in_days",
-   "fieldtype": "Int",
-   "label": "Base Expiry Date In Days",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_eqxkm",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "expiry_date",
-   "fieldtype": "Datetime",
-   "label": "RT Expiry Date"
-  },
-  {
-   "depends_on": "expiry_date",
-   "fieldname": "rt_expiry_date_in_days",
-   "fieldtype": "Int",
-   "label": "RT Expiry Date In Days",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_eo5gy",
-   "fieldtype": "Section Break"
-  },
-  {
-   "fieldname": "aging_history",
-   "fieldtype": "Table",
-   "label": "Aging History",
-   "options": "Aging History",
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_details",
-   "fieldtype": "Tab Break",
-   "label": "Purchase / Manufacture Details"
-  },
-  {
-   "fieldname": "column_break2",
-   "fieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "purchase_document_type",
-   "fieldtype": "Link",
-   "label": "Creation Document Type",
-   "no_copy": 1,
-   "options": "DocType",
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_document_no",
-   "fieldtype": "Dynamic Link",
-   "label": "Creation Document No",
-   "no_copy": 1,
-   "options": "purchase_document_type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_date",
-   "fieldtype": "Date",
-   "label": "Creation Date",
-   "no_copy": 1,
-   "oldfieldname": "purchase_date",
-   "oldfieldtype": "Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_time",
-   "fieldtype": "Time",
-   "label": "Creation Time",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "purchase_rate",
-   "fieldtype": "Currency",
-   "label": "Incoming Rate",
-   "no_copy": 1,
-   "oldfieldname": "purchase_rate",
-   "oldfieldtype": "Currency",
-   "options": "Company:company:default_currency",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break3",
-   "fieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "supplier",
-   "fieldtype": "Link",
-   "label": "Supplier",
-   "no_copy": 1,
-   "options": "Supplier"
-  },
-  {
-   "bold": 1,
-   "fieldname": "supplier_name",
-   "fieldtype": "Data",
-   "label": "Supplier Name",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "asset_details",
-   "fieldtype": "Tab Break",
-   "label": "Asset Details"
-  },
-  {
-   "fieldname": "asset",
-   "fieldtype": "Link",
-   "label": "Asset",
-   "no_copy": 1,
-   "options": "Asset",
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
-   "depends_on": "asset",
-   "fieldname": "asset_status",
-   "fieldtype": "Select",
-   "label": "Asset Status",
-   "options": "\nIssue\nReceipt\nTransfer",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_24",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "delivery_details",
-   "fieldtype": "Tab Break",
-   "label": "Delivery Details",
-   "oldfieldtype": "Column Break"
-  },
-  {
-   "fieldname": "delivery_document_type",
-   "fieldtype": "Link",
-   "label": "Delivery Document Type",
-   "no_copy": 1,
-   "options": "DocType",
-   "read_only": 1
-  },
-  {
-   "fieldname": "delivery_document_no",
-   "fieldtype": "Dynamic Link",
-   "label": "Delivery Document No",
-   "no_copy": 1,
-   "options": "delivery_document_type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "delivery_date",
-   "fieldtype": "Date",
-   "label": "Delivery Date",
-   "no_copy": 1,
-   "oldfieldname": "delivery_date",
-   "oldfieldtype": "Date",
-   "read_only": 1
-  },
-  {
-   "fieldname": "delivery_time",
-   "fieldtype": "Time",
-   "label": "Delivery Time",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "secondary_uom",
-   "fieldtype": "Link",
-   "label": "Secondary UOM",
-   "options": "UOM"
-  },
-  {
-   "fieldname": "secondary_available_qty",
-   "fieldtype": "Float",
-   "label": "Secondary Available Qty",
-   "precision": "4"
-  },
-  {
-   "fieldname": "column_break5",
-   "fieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "no_copy": 1,
-   "oldfieldname": "customer",
-   "oldfieldtype": "Link",
-   "options": "Customer",
-   "print_hide": 1
-  },
-  {
-   "bold": 1,
-   "fieldname": "customer_name",
-   "fieldtype": "Data",
-   "label": "Customer Name",
-   "no_copy": 1,
-   "oldfieldname": "customer_name",
-   "oldfieldtype": "Data",
-   "read_only": 1
-  },
-  {
-   "fieldname": "primary_uom",
-   "fieldtype": "Link",
-   "label": "Primary UOM",
-   "options": "UOM"
-  },
-  {
-   "fieldname": "primary_available_qty",
-   "fieldtype": "Float",
-   "label": "Primary Available qty",
-   "precision": "4"
-  },
-  {
-   "fieldname": "invoice_details",
-   "fieldtype": "Section Break",
-   "label": "Invoice Details"
-  },
-  {
-   "fieldname": "sales_invoice",
-   "fieldtype": "Link",
-   "label": "Sales Invoice",
-   "options": "Sales Invoice",
-   "read_only": 1
-  },
-  {
-   "fieldname": "stock_transactions_section",
-   "fieldtype": "Section Break",
-   "label": "Stock Transactions"
-  },
-  {
-   "fieldname": "stock_details",
-   "fieldtype": "Table",
-   "label": "Stock Details",
-   "options": "Stock Details"
-  },
-  {
-   "fieldname": "warranty_amc_details",
-   "fieldtype": "Section Break",
-   "label": "Warranty / AMC Details"
-  },
-  {
-   "fieldname": "column_break6",
-   "fieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "warranty_expiry_date",
-   "fieldtype": "Date",
-   "label": "Warranty Expiry Date",
-   "oldfieldname": "warranty_expiry_date",
-   "oldfieldtype": "Date",
-   "width": "150px"
-  },
-  {
-   "fieldname": "amc_expiry_date",
-   "fieldtype": "Date",
-   "label": "AMC Expiry Date",
-   "oldfieldname": "amc_expiry_date",
-   "oldfieldtype": "Date",
-   "width": "150px"
-  },
-  {
-   "fieldname": "column_break7",
-   "fieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "maintenance_status",
-   "fieldtype": "Select",
-   "label": "Maintenance Status",
-   "oldfieldname": "maintenance_status",
-   "oldfieldtype": "Select",
-   "options": "\nUnder Warranty\nOut of Warranty\nUnder AMC\nOut of AMC",
-   "read_only": 1,
-   "search_index": 1,
-   "width": "150px"
-  },
-  {
-   "fieldname": "warranty_period",
-   "fieldtype": "Int",
-   "label": "Warranty Period (Days)",
-   "oldfieldname": "warranty_period",
-   "oldfieldtype": "Int",
-   "read_only": 1,
-   "width": "150px"
-  },
-  {
-   "depends_on": "eval:doc.slitted_container==1",
-   "fieldname": "slitted_info_tab",
-   "fieldtype": "Tab Break",
-   "label": "Slitted Info"
-  },
-  {
-   "default": "0",
-   "fieldname": "slitted_container",
-   "fieldtype": "Check",
-   "label": "Slitted Container",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_mfudv",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "slitted_doc_ref",
-   "fieldtype": "Link",
-   "label": "Slitted Doc Ref",
-   "options": "Slit Containers",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_ujkzm",
-   "fieldtype": "Section Break"
-  },
-  {
-   "depends_on": "slitted_container",
-   "fieldname": "slitted_details",
-   "fieldtype": "Table",
-   "label": "Slitted Details",
-   "options": "Slitted Details",
-   "read_only": 1
-  },
-  {
-   "fieldname": "more_info",
-   "fieldtype": "Tab Break",
-   "label": "More Information"
-  },
-  {
-   "fieldname": "container_details",
-   "fieldtype": "Long Text",
-   "label": "Container Details"
-  },
-  {
-   "fieldname": "company",
-   "fieldtype": "Link",
-   "label": "Company",
-   "options": "Company",
-   "remember_last_selected_value": 1,
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_standard_filter": 1,
-   "label": "Status",
-   "options": "\nActive\nInactive\nDelivered\nExpired\nSlitted\nUsed",
-   "read_only": 1
-  },
-  {
-   "fieldname": "container_details_section",
-   "fieldtype": "Section Break",
-   "label": "Container Details"
-  },
-  {
-   "default": "0",
-   "fieldname": "fg_item",
-   "fieldtype": "Check",
-   "label": "Fg Item",
-   "read_only": 1
-  },
-  {
-   "depends_on": "fg_item",
-   "fieldname": "used_containers",
-   "fieldtype": "Table",
-   "label": "Used Containers",
-   "options": "Container Details"
-  },
-  {
-   "fieldname": "reference_section",
-   "fieldtype": "Tab Break",
-   "label": "Reference"
-  },
-  {
-   "fieldname": "initial_qty",
-   "fieldtype": "Float",
-   "label": "Initial Qty",
-   "read_only": 1
-  },
-  {
-   "fieldname": "uom",
-   "fieldtype": "Link",
-   "label": "Uom",
-   "options": "UOM",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_21qdz",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "0",
-   "fieldname": "sub_container",
-   "fieldtype": "Check",
-   "label": "Sub Container",
-   "read_only": 1
-  },
-  {
-   "fieldname": "parent_ref",
-   "fieldtype": "Link",
-   "label": "Parent Ref",
-   "options": "Container",
-   "read_only": 1
-  },
-  {
-   "fieldname": "selected",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Selected",
-   "read_only": 1
-  },
-  {
-   "default": "0",
-   "fetch_from": "item_code.ignore_scrap_qty",
-   "fieldname": "ignore_scrap_qty_01_kg",
-   "fieldtype": "Check",
-   "label": "Ignore Scrap Qty (0.1 KG)"
-  }
- ],
- "icon": "fa fa-barcode",
- "links": [],
- "modified": "2024-02-28 12:43:44.088483",
- "modified_by": "Administrator",
- "module": "Container",
- "name": "Container",
- "naming_rule": "By fieldname",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Item Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "import": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Stock Manager",
-   "write": 1
-  },
-  {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Stock User"
-  }
- ],
- "search_fields": "item_code",
- "show_name_in_global_search": 1,
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "track_changes": 1
-}
+    "actions": [],
+    "allow_import": 1,
+    "autoname": "field:container_no",
+    "creation": "2023-04-19 12:55:20.684005",
+    "default_view": "List",
+    "description": "Distinct unit of an Item",
+    "doctype": "DocType",
+    "document_type": "Setup",
+    "engine": "InnoDB",
+    "field_order": [
+     "details",
+     "column_break0",
+     "container_no",
+     "item_code",
+     "warehouse",
+     "batch_no",
+     "updated",
+     "temperature",
+     "column_break1",
+     "item_name",
+     "description",
+     "item_group",
+     "brand",
+     "sales_order",
+     "aging_history_tab",
+     "base_expiry_date",
+     "base_expiry_date_in_days",
+     "column_break_eqxkm",
+     "expiry_date",
+     "rt_expiry_date_in_days",
+     "column_break_eo5gy",
+     "aging_history",
+     "purchase_details",
+     "column_break2",
+     "purchase_document_type",
+     "purchase_document_no",
+     "purchase_date",
+     "purchase_time",
+     "purchase_rate",
+     "column_break3",
+     "supplier",
+     "supplier_name",
+     "asset_details",
+     "asset",
+     "asset_status",
+     "column_break_24",
+     "delivery_details",
+     "delivery_document_type",
+     "delivery_document_no",
+     "delivery_date",
+     "delivery_time",
+     "secondary_uom",
+     "secondary_available_qty",
+     "column_break5",
+     "customer",
+     "customer_name",
+     "primary_uom",
+     "primary_available_qty",
+     "ignore_scrap_qty_01_kg",
+     "invoice_details",
+     "sales_invoice",
+     "stock_transactions_section",
+     "stock_details",
+     "warranty_amc_details",
+     "column_break6",
+     "warranty_expiry_date",
+     "amc_expiry_date",
+     "column_break7",
+     "maintenance_status",
+     "warranty_period",
+     "slitted_info_tab",
+     "slitted_container",
+     "column_break_mfudv",
+     "slitted_doc_ref",
+     "column_break_ujkzm",
+     "slitted_details",
+     "more_info",
+     "container_details",
+     "company",
+     "status",
+     "container_details_section",
+     "fg_item",
+     "used_containers",
+     "reference_section",
+     "initial_qty",
+     "uom",
+     "column_break_21qdz",
+     "sub_container",
+     "parent_ref",
+     "selected"
+    ],
+    "fields": [
+     {
+      "fieldname": "details",
+      "fieldtype": "Section Break",
+      "oldfieldtype": "Section Break"
+     },
+     {
+      "fieldname": "column_break0",
+      "fieldtype": "Column Break"
+     },
+     {
+      "fieldname": "container_no",
+      "fieldtype": "Data",
+      "label": "Container No",
+      "no_copy": 1,
+      "reqd": 1,
+      "unique": 1
+     },
+     {
+      "fieldname": "item_code",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Item Code",
+      "oldfieldname": "item_code",
+      "oldfieldtype": "Link",
+      "options": "Item",
+      "reqd": 1
+     },
+     {
+      "description": "Warehouse can only be changed via Stock Entry / Delivery Note / Purchase Receipt",
+      "fieldname": "warehouse",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Warehouse",
+      "no_copy": 1,
+      "oldfieldname": "warehouse",
+      "oldfieldtype": "Link",
+      "options": "Warehouse",
+      "read_only": 1,
+      "search_index": 1
+     },
+     {
+      "fieldname": "batch_no",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Batch No",
+      "options": "Batch"
+     },
+     {
+      "fieldname": "temperature",
+      "fieldtype": "Link",
+      "label": "Temperature",
+      "options": "Storage Temperature",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break1",
+      "fieldtype": "Column Break"
+     },
+     {
+      "fetch_from": "item_code.item_name",
+      "fieldname": "item_name",
+      "fieldtype": "Data",
+      "label": "Item Name",
+      "read_only": 1
+     },
+     {
+      "fetch_from": "item_code.description",
+      "fieldname": "description",
+      "fieldtype": "Text",
+      "label": "Description",
+      "oldfieldname": "description",
+      "oldfieldtype": "Text",
+      "read_only": 1,
+      "width": "300px"
+     },
+     {
+      "fetch_from": "item_code.item_group",
+      "fieldname": "item_group",
+      "fieldtype": "Link",
+      "label": "Item Group",
+      "oldfieldname": "item_group",
+      "oldfieldtype": "Link",
+      "options": "Item Group",
+      "read_only": 1
+     },
+     {
+      "fetch_from": "item_code.brand",
+      "fieldname": "brand",
+      "fieldtype": "Link",
+      "label": "Brand",
+      "oldfieldname": "brand",
+      "oldfieldtype": "Link",
+      "options": "Brand",
+      "read_only": 1
+     },
+     {
+      "fieldname": "sales_order",
+      "fieldtype": "Link",
+      "label": "Sales Order",
+      "options": "Sales Order"
+     },
+     {
+      "fieldname": "aging_history_tab",
+      "fieldtype": "Tab Break",
+      "label": "Aging History "
+     },
+     {
+      "fieldname": "base_expiry_date",
+      "fieldtype": "Datetime",
+      "label": "Base Expiry Date"
+     },
+     {
+      "depends_on": "base_expiry_date",
+      "fieldname": "base_expiry_date_in_days",
+      "fieldtype": "Int",
+      "label": "Base Expiry Date In Days",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_eqxkm",
+      "fieldtype": "Column Break"
+     },
+     {
+      "fieldname": "expiry_date",
+      "fieldtype": "Datetime",
+      "label": "RT Expiry Date"
+     },
+     {
+      "depends_on": "expiry_date",
+      "fieldname": "rt_expiry_date_in_days",
+      "fieldtype": "Int",
+      "label": "RT Expiry Date In Days",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_eo5gy",
+      "fieldtype": "Section Break"
+     },
+     {
+      "fieldname": "aging_history",
+      "fieldtype": "Table",
+      "label": "Aging History",
+      "options": "Aging History",
+      "read_only": 1
+     },
+     {
+      "fieldname": "purchase_details",
+      "fieldtype": "Tab Break",
+      "label": "Purchase / Manufacture Details"
+     },
+     {
+      "fieldname": "column_break2",
+      "fieldtype": "Column Break",
+      "width": "50%"
+     },
+     {
+      "fieldname": "purchase_document_type",
+      "fieldtype": "Link",
+      "label": "Creation Document Type",
+      "no_copy": 1,
+      "options": "DocType",
+      "read_only": 1
+     },
+     {
+      "fieldname": "purchase_document_no",
+      "fieldtype": "Dynamic Link",
+      "label": "Creation Document No",
+      "no_copy": 1,
+      "options": "purchase_document_type",
+      "read_only": 1
+     },
+     {
+      "fieldname": "purchase_date",
+      "fieldtype": "Date",
+      "label": "Creation Date",
+      "no_copy": 1,
+      "oldfieldname": "purchase_date",
+      "oldfieldtype": "Date",
+      "read_only": 1
+     },
+     {
+      "fieldname": "purchase_time",
+      "fieldtype": "Time",
+      "label": "Creation Time",
+      "no_copy": 1,
+      "read_only": 1
+     },
+     {
+      "fieldname": "purchase_rate",
+      "fieldtype": "Currency",
+      "label": "Incoming Rate",
+      "no_copy": 1,
+      "oldfieldname": "purchase_rate",
+      "oldfieldtype": "Currency",
+      "options": "Company:company:default_currency",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break3",
+      "fieldtype": "Column Break",
+      "width": "50%"
+     },
+     {
+      "fieldname": "supplier",
+      "fieldtype": "Link",
+      "label": "Supplier",
+      "no_copy": 1,
+      "options": "Supplier"
+     },
+     {
+      "bold": 1,
+      "fieldname": "supplier_name",
+      "fieldtype": "Data",
+      "label": "Supplier Name",
+      "no_copy": 1,
+      "read_only": 1
+     },
+     {
+      "fieldname": "asset_details",
+      "fieldtype": "Tab Break",
+      "label": "Asset Details"
+     },
+     {
+      "fieldname": "asset",
+      "fieldtype": "Link",
+      "label": "Asset",
+      "no_copy": 1,
+      "options": "Asset",
+      "print_hide": 1,
+      "read_only": 1
+     },
+     {
+      "depends_on": "asset",
+      "fieldname": "asset_status",
+      "fieldtype": "Select",
+      "label": "Asset Status",
+      "options": "\nIssue\nReceipt\nTransfer",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_24",
+      "fieldtype": "Column Break"
+     },
+     {
+      "fieldname": "delivery_details",
+      "fieldtype": "Tab Break",
+      "label": "Delivery Details",
+      "oldfieldtype": "Column Break"
+     },
+     {
+      "fieldname": "delivery_document_type",
+      "fieldtype": "Link",
+      "label": "Delivery Document Type",
+      "no_copy": 1,
+      "options": "DocType",
+      "read_only": 1
+     },
+     {
+      "fieldname": "delivery_document_no",
+      "fieldtype": "Dynamic Link",
+      "label": "Delivery Document No",
+      "no_copy": 1,
+      "options": "delivery_document_type",
+      "read_only": 1
+     },
+     {
+      "fieldname": "delivery_date",
+      "fieldtype": "Date",
+      "label": "Delivery Date",
+      "no_copy": 1,
+      "oldfieldname": "delivery_date",
+      "oldfieldtype": "Date",
+      "read_only": 1
+     },
+     {
+      "fieldname": "delivery_time",
+      "fieldtype": "Time",
+      "label": "Delivery Time",
+      "no_copy": 1,
+      "read_only": 1
+     },
+     {
+      "fieldname": "secondary_uom",
+      "fieldtype": "Link",
+      "label": "Secondary UOM",
+      "options": "UOM"
+     },
+     {
+      "fieldname": "secondary_available_qty",
+      "fieldtype": "Float",
+      "label": "Secondary Available Qty",
+      "precision": "4"
+     },
+     {
+      "fieldname": "column_break5",
+      "fieldtype": "Column Break",
+      "width": "50%"
+     },
+     {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "label": "Customer",
+      "no_copy": 1,
+      "oldfieldname": "customer",
+      "oldfieldtype": "Link",
+      "options": "Customer",
+      "print_hide": 1
+     },
+     {
+      "bold": 1,
+      "fieldname": "customer_name",
+      "fieldtype": "Data",
+      "label": "Customer Name",
+      "no_copy": 1,
+      "oldfieldname": "customer_name",
+      "oldfieldtype": "Data",
+      "read_only": 1
+     },
+     {
+      "fieldname": "primary_uom",
+      "fieldtype": "Link",
+      "label": "Primary UOM",
+      "options": "UOM"
+     },
+     {
+      "fieldname": "primary_available_qty",
+      "fieldtype": "Float",
+      "label": "Primary Available qty",
+      "precision": "4"
+     },
+     {
+      "fieldname": "invoice_details",
+      "fieldtype": "Section Break",
+      "label": "Invoice Details"
+     },
+     {
+      "fieldname": "sales_invoice",
+      "fieldtype": "Link",
+      "label": "Sales Invoice",
+      "options": "Sales Invoice",
+      "read_only": 1
+     },
+     {
+      "fieldname": "stock_transactions_section",
+      "fieldtype": "Section Break",
+      "label": "Stock Transactions"
+     },
+     {
+      "fieldname": "stock_details",
+      "fieldtype": "Table",
+      "label": "Stock Details",
+      "options": "Stock Details"
+     },
+     {
+      "fieldname": "warranty_amc_details",
+      "fieldtype": "Section Break",
+      "label": "Warranty / AMC Details"
+     },
+     {
+      "fieldname": "column_break6",
+      "fieldtype": "Column Break",
+      "width": "50%"
+     },
+     {
+      "fieldname": "warranty_expiry_date",
+      "fieldtype": "Date",
+      "label": "Warranty Expiry Date",
+      "oldfieldname": "warranty_expiry_date",
+      "oldfieldtype": "Date",
+      "width": "150px"
+     },
+     {
+      "fieldname": "amc_expiry_date",
+      "fieldtype": "Date",
+      "label": "AMC Expiry Date",
+      "oldfieldname": "amc_expiry_date",
+      "oldfieldtype": "Date",
+      "width": "150px"
+     },
+     {
+      "fieldname": "column_break7",
+      "fieldtype": "Column Break",
+      "width": "50%"
+     },
+     {
+      "fieldname": "maintenance_status",
+      "fieldtype": "Select",
+      "label": "Maintenance Status",
+      "oldfieldname": "maintenance_status",
+      "oldfieldtype": "Select",
+      "options": "\nUnder Warranty\nOut of Warranty\nUnder AMC\nOut of AMC",
+      "read_only": 1,
+      "search_index": 1,
+      "width": "150px"
+     },
+     {
+      "fieldname": "warranty_period",
+      "fieldtype": "Int",
+      "label": "Warranty Period (Days)",
+      "oldfieldname": "warranty_period",
+      "oldfieldtype": "Int",
+      "read_only": 1,
+      "width": "150px"
+     },
+     {
+      "depends_on": "eval:doc.slitted_container==1",
+      "fieldname": "slitted_info_tab",
+      "fieldtype": "Tab Break",
+      "label": "Slitted Info"
+     },
+     {
+      "default": "0",
+      "fieldname": "slitted_container",
+      "fieldtype": "Check",
+      "label": "Slitted Container",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_mfudv",
+      "fieldtype": "Column Break"
+     },
+     {
+      "fieldname": "slitted_doc_ref",
+      "fieldtype": "Link",
+      "label": "Slitted Doc Ref",
+      "options": "Slit Containers",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_ujkzm",
+      "fieldtype": "Section Break"
+     },
+     {
+      "depends_on": "slitted_container",
+      "fieldname": "slitted_details",
+      "fieldtype": "Table",
+      "label": "Slitted Details",
+      "options": "Slitted Details",
+      "read_only": 1
+     },
+     {
+      "fieldname": "more_info",
+      "fieldtype": "Tab Break",
+      "label": "More Information"
+     },
+     {
+      "fieldname": "container_details",
+      "fieldtype": "Text Editor",
+      "label": "Container Details"
+     },
+     {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "remember_last_selected_value": 1,
+      "reqd": 1,
+      "search_index": 1
+     },
+     {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_standard_filter": 1,
+      "label": "Status",
+      "options": "\nActive\nInactive\nDelivered\nExpired\nSlitted\nUsed",
+      "read_only": 1
+     },
+     {
+      "fieldname": "container_details_section",
+      "fieldtype": "Section Break",
+      "label": "Container Details"
+     },
+     {
+      "default": "0",
+      "fieldname": "fg_item",
+      "fieldtype": "Check",
+      "label": "Fg Item",
+      "read_only": 1
+     },
+     {
+      "depends_on": "fg_item",
+      "fieldname": "used_containers",
+      "fieldtype": "Table",
+      "label": "Used Containers",
+      "options": "Container Details"
+     },
+     {
+      "fieldname": "reference_section",
+      "fieldtype": "Tab Break",
+      "label": "Reference"
+     },
+     {
+      "fieldname": "initial_qty",
+      "fieldtype": "Float",
+      "label": "Initial Qty",
+      "read_only": 1
+     },
+     {
+      "fieldname": "uom",
+      "fieldtype": "Link",
+      "label": "Uom",
+      "options": "UOM",
+      "read_only": 1
+     },
+     {
+      "fieldname": "column_break_21qdz",
+      "fieldtype": "Column Break"
+     },
+     {
+      "default": "0",
+      "fieldname": "sub_container",
+      "fieldtype": "Check",
+      "label": "Sub Container",
+      "read_only": 1
+     },
+     {
+      "fieldname": "parent_ref",
+      "fieldtype": "Link",
+      "label": "Parent Ref",
+      "options": "Container",
+      "read_only": 1
+     },
+     {
+      "fieldname": "selected",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Selected",
+      "read_only": 1
+     },
+     {
+      "default": "0",
+      "fetch_from": "item_code.ignore_scrap_qty",
+      "fieldname": "ignore_scrap_qty_01_kg",
+      "fieldtype": "Check",
+      "label": "Ignore Scrap Qty (0.1 KG)"
+     },
+     {
+      "default": "0",
+      "fieldname": "updated",
+      "fieldtype": "Check",
+      "label": "Updated",
+      "read_only": 1
+     }
+    ],
+    "icon": "fa fa-barcode",
+    "links": [],
+    "modified": "2024-05-17 18:06:48.306053",
+    "modified_by": "Administrator",
+    "module": "Container",
+    "name": "Container",
+    "naming_rule": "By fieldname",
+    "owner": "Administrator",
+    "permissions": [
+     {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Item Manager",
+      "share": 1,
+      "write": 1
+     },
+     {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "import": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Stock Manager",
+      "write": 1
+     },
+     {
+      "email": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Stock User"
+     }
+    ],
+    "search_fields": "item_code",
+    "show_name_in_global_search": 1,
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
+   }
