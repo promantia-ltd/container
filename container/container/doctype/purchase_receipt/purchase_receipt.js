@@ -6,7 +6,6 @@ frappe.ui.form.on('Purchase Receipt', {
 	},
 	refresh: function(frm,cdt,cdn){
 		if(frm.doc.button_hide!="1" && frm.doc.docstatus==1){
-		// if(frm.doc.docstatus==1){
 			frm.add_custom_button(__('Set Container Qty'), function(){
 				set_quantity_for_container_nos(frm.doc.items,frm);
 			})
