@@ -153,9 +153,16 @@ def get_uom_qty_and_expiry_date(container_no_list):
     for container in container_no_list:
         get_qty=frappe.db.get_value(container_no_doc,container,["primary_uom","primary_available_qty","updated"],as_dict=True)
         get_expiry_date=frappe.db.get_value(container_no_doc,container,"expiry_date")
+        item_code=frappe.db.get_value(container_no_doc,container,"item_code")
+        purchase_uom=frappe.db.get_value("Item",{"name":item_code},"purchase_uom")
+        purchase_uom_conversion = frappe.db.get_value(
+                        "UOM Conversion Detail",
+                        {"parent": item_code, "uom": purchase_uom},
+                        "conversion_factor",
+                    )
         if get_qty:
-            uom.append(get_qty.primary_uom)
-            qty.append(get_qty.primary_available_qty)
+            uom.append(purchase_uom)
+            qty.append(get_qty.primary_available_qty/purchase_uom_conversion)
             updated.append(get_qty.updated)
         if get_expiry_date:
             expiry_date.append(get_expiry_date)
@@ -177,33 +184,43 @@ def set_quantity_container_no(quantity,items,docstatus,docname):
                     if item['item_code'] == sp["item_code"]:
                         qty+=sp["quantity"]
                         uom.append(sp["uom"])
-                qty= round(qty,4)
+                purchase_uom_conversion = frappe.db.get_value(
+                        "UOM Conversion Detail",
+                        {"parent": item_doc.item_code, "uom": item_doc.purchase_uom},
+                        "conversion_factor",
+                    )
+                qty= round(qty*purchase_uom_conversion,3)
                 # if it is a final update of this document validate the total
                 if docstatus=='1':
-                    if flt(qty) >flt(item['stock_qty']):
+                    print(sp_quantity['container_no_qty'][0]['container_no'])
+                    valt=(flt(item['stock_qty'])-flt(qty))
+                    if flt(qty) >flt(item['stock_qty']) and abs(valt)>0.1:
                         frappe.throw(_("Quantity exceeded. Expected Total Qty of the item "+item['item_code']+" should not be more than "+str(item['qty'])))
                         validate=0
-                    if flt(qty) < flt(item['stock_qty']):
+                    if flt(qty) < flt(item['stock_qty']) and abs(valt)>0.1:
                         frappe.throw(_("Quantity of "+item['item_code']+" should be equal to the accepted qty "+str(item['qty'])))
                         validate=0
                 for uom_val in uom:
-                    if item['stock_uom'] !=uom_val:
-                        frappe.throw(_("Uom Must be "+item['uom']+" "+sp["name"]))
+                    if item_doc.purchase_uom !=uom_val:
+                        frappe.throw(_("Uom Must be "+item_doc.purchase_uom+" "+sp["name"]))
                         validate=0
                 qty=0
                 uom=[]
         if validate:
             for sp in sp_quantity['container_no_qty']:
-                # check if the container is updated then only update the Container
+                # check if the container is updated(checkbox) then only update the Container
                 if docstatus=='1' or sp["updated"]==1:
-                    secondary_uom_cf = frappe.db.get_value(
+                    #fetch purchase UOM details
+                    purchase_uom_conversion = frappe.db.get_value(
                         "UOM Conversion Detail",
-                        {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
+                        {"parent": sp['item_code'], "uom": sp["uom"]},
                         "conversion_factor",
                     )
+
                     sp_doc=frappe.get_doc(container_no_doc,sp['container_no'])
-                    sp_doc.db_set('primary_available_qty',sp['quantity'])
-                    sp_doc.db_set("secondary_available_qty", sp["quantity"]/secondary_uom_cf)
+                    #as purchase UOM might be secondary UOM
+                    sp_doc.db_set('primary_available_qty',sp['quantity']*purchase_uom_conversion)
+                    sp_doc.db_set("secondary_available_qty", sp["quantity"])
                     sp_doc.db_set('updated',sp['updated'])
                     if docstatus=='1':
                         sp_doc.db_set('status','Active')
