@@ -174,8 +174,10 @@ doc_events = {
     },
     "Delivery Note": {
         "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
-        "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel"
-    },
+        "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
+        "before_save": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save"
+
+    }
 }
 
 # Scheduled Tasks
