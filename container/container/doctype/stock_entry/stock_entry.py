@@ -542,7 +542,7 @@ def set_containers_status(doc, method):
 
 def validate(doc,method):
 	try:
-		if doc.stock_entry_type=="Material Transfer for Manufacture" or doc.stock_entry_type=="Material Transfer":
+		if doc.stock_entry_type=="Material Transfer for Manufacture" or (doc.stock_entry_type=="Material Transfer" and not doc.pick_list):
 			for item in doc.items:
 				item_doc=frappe.get_doc("Item",item.item_code)
 				if item.is_finished_item!=1 and item_doc.is_containerized==1:
@@ -576,6 +576,8 @@ def validate(doc,method):
 						item.qty=total_qty
 	except ContainersNotAssigned as e:
 		frappe.throw(str(e))
+	add_containers_before_save_pl(doc)
+	
 
 
 from frappe import get_doc, get_list, delete_doc, throw, msgprint
@@ -1245,3 +1247,50 @@ def partially_reserved():
 @frappe.whitelist()
 def support_continuous_item_mapping():
 	return True
+
+
+def add_containers_before_save_pl(doc):
+	if doc.pick_list:
+		try:
+			for item in doc.items:
+				warehouse=item.s_warehouse or doc.from_warehouse
+				if frappe.db.get_value("Item",
+								{"name": item.item_code}, "is_containerized")==1 and item.transfer_qty>0:
+					ignore_scrap_qty= frappe.db.get_value("Item",
+								{"name": item.item_code}, "ignore_scrap_qty")
+					if ignore_scrap_qty:
+							#ignore 0.1 kg of container
+							ignore_scrap_qty = 0.1
+
+							query = frappe.db.sql("""
+								SELECT name, (primary_available_qty - 0.1) as primary_available_qty, expiry_date
+								FROM `tabContainer`
+								WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
+								ORDER BY creation
+							""".format(item.item_code, warehouse, ignore_scrap_qty), as_dict=True)
+					else:
+							ignore_scrap_qty = 0
+
+							query = frappe.db.sql("""
+								SELECT name, primary_available_qty, expiry_date
+								FROM `tabContainer`
+								WHERE item_code = '{}' AND warehouse = '{}' AND status = "Active" AND primary_available_qty > {}
+								ORDER BY creation
+							""".format(item.item_code, warehouse, ignore_scrap_qty), as_dict=True)
+					container_list=""
+					if len(query)>0:
+						required_qty=item.transfer_qty
+						for container in query:
+							if required_qty>0:
+								required_qty=required_qty-container.primary_available_qty
+								container_list=container_list+container.name+","
+							else:
+								break
+						if required_qty>0:
+							frappe.throw('Stock is Not available for the Item '+item.item_code+' at the warehouse '+warehouse)
+						else:
+							item.containers=container_list
+		except Exception as e:
+			frappe.db.rollback()
+			frappe.log_error("An error occurred: {}".format(str(e)))
+			frappe.throw("Something went wrong : "+str(e)) 
