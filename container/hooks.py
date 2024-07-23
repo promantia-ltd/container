@@ -175,7 +175,10 @@ doc_events = {
     "Delivery Note": {
         "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
         "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
-        "before_save": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save"
+        "validate": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save",
+        "before_submit": "container.container.doctype.delivery_note.delivery_note.validate_containers",
+
+
 
     }
 }
