@@ -542,6 +542,7 @@ def set_containers_status(doc, method):
 
 def validate(doc,method):
 	try:
+		add_containers_before_save_pl(doc)
 		if doc.stock_entry_type=="Material Transfer for Manufacture" or (doc.stock_entry_type=="Material Transfer" and not doc.pick_list):
 			for item in doc.items:
 				item_doc=frappe.get_doc("Item",item.item_code)
@@ -574,9 +575,11 @@ def validate(doc,method):
 								total_qty=total_qty+qty
 						item.uom=frappe.db.get_value("Item", {'name':item.item_code}, "stock_uom")
 						item.qty=total_qty
+						item.transfer_qty=total_qty
+
 	except ContainersNotAssigned as e:
 		frappe.throw(str(e))
-	add_containers_before_save_pl(doc)
+	
 	
 
 
