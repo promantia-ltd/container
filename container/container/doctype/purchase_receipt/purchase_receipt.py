@@ -155,17 +155,24 @@ def get_uom_qty_and_expiry_date(container_no_list):
         get_expiry_date=frappe.db.get_value(container_no_doc,container,"expiry_date")
         item_code=frappe.db.get_value(container_no_doc,container,"item_code")
         purchase_uom=frappe.db.get_value("Item",{"name":item_code},"purchase_uom")
-        purchase_uom_conversion = frappe.db.get_value(
+        if purchase_uom:
+            purchase_uom_conversion = frappe.db.get_value(
                         "UOM Conversion Detail",
                         {"parent": item_code, "uom": purchase_uom},
                         "conversion_factor",
                     )
-        if get_qty:
-            uom.append(purchase_uom)
-            qty.append(get_qty.primary_available_qty/purchase_uom_conversion)
-            updated.append(get_qty.updated)
-        if get_expiry_date:
-            expiry_date.append(get_expiry_date)
+            if purchase_uom_conversion:
+                if get_qty:
+                    uom.append(purchase_uom)
+                    qty.append(get_qty.primary_available_qty/purchase_uom_conversion)
+                    updated.append(get_qty.updated)
+                if get_expiry_date:
+                    expiry_date.append(get_expiry_date)
+            else:
+                frappe.throw('Please mentione the UOM conversion for '+purchase_uom+' at the Item '+item_code)
+        else:
+            frappe.throw("Please mention the Purchase UOM for the Item "+item_code)
+            
     return uom,qty,expiry_date,updated
     
 
