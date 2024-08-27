@@ -169,7 +169,7 @@ def get_uom_qty_and_expiry_date(container_no_list):
                 if get_expiry_date:
                     expiry_date.append(get_expiry_date)
             else:
-                frappe.throw('Please mentione the UOM conversion for '+purchase_uom+' at the Item '+item_code)
+                frappe.throw('Please mention the UOM conversion for '+purchase_uom+' at the Item '+item_code)
         else:
             frappe.throw("Please mention the Purchase UOM for the Item "+item_code)
             
@@ -223,11 +223,16 @@ def set_quantity_container_no(quantity,items,docstatus,docname):
                         {"parent": sp['item_code'], "uom": sp["uom"]},
                         "conversion_factor",
                     )
+                    secondary_uom_cf = frappe.db.get_value(
+                        "UOM Conversion Detail",
+                        {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
+                        "conversion_factor",
+                    )
 
                     sp_doc=frappe.get_doc(container_no_doc,sp['container_no'])
                     #as purchase UOM might be secondary UOM
                     sp_doc.db_set('primary_available_qty',sp['quantity']*purchase_uom_conversion)
-                    sp_doc.db_set("secondary_available_qty", sp["quantity"])
+                    sp_doc.db_set("secondary_available_qty", (sp['quantity']*purchase_uom_conversion)/secondary_uom_cf)
                     sp_doc.db_set('updated',sp['updated'])
                     if docstatus=='1':
                         sp_doc.db_set('status','Active')
