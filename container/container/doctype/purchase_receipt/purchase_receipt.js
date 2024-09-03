@@ -41,6 +41,7 @@ frappe.ui.form.on('Purchase Receipt Item', {
 	}
 })
 function container_and_batch_selector(frm,cdt,cdn){
+	// container batch bundle functionality
 	let item = locals[cdt][cdn];
 		let me = this;
 		let path = "assets/container/js/utils/container_batch_selector.js";
@@ -75,6 +76,7 @@ function container_and_batch_selector(frm,cdt,cdn){
 			});
 }
 function set_quantity_for_container_nos(items,frm){
+	// set qty in pop up for containers
 	let container_no_list=[];
 	let qty=[];
 	let uom=[];

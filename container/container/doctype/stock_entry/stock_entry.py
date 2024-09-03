@@ -292,6 +292,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 
 def before_submit(doc, method):
     try:
+		#check if assigned containers have sufficient qty
         if doc.stock_entry_type == "Manufacture":
             for item in doc.items:
                 item_doc = frappe.get_doc("Item", item.item_code)
@@ -315,6 +316,7 @@ def before_submit(doc, method):
 from frappe import throw
 
 def set_containers_status(doc, method):
+	# update details in assigned container document
 	comment = "<b>Stock Reserved Successfully</b><br>Assigned Containers:<br>"
 	reserve_qty_str = ""
 	has_partially_reserved = partially_reserved()
@@ -382,7 +384,7 @@ def set_containers_status(doc, method):
 					frappe.db.commit()
 
 				doc.once_reserved = 1
-
+		# reserved items are the ones which are present at the location and not required to be transfered
 		for item in doc.reserved_items:
 			item_doc = frappe.get_doc("Item", item.item_code)
 
@@ -587,6 +589,7 @@ from frappe import get_doc, get_list, delete_doc, throw, msgprint
 
 def on_cancel(doc, method):
 	comment = ""
+	# remove all the reservations from containers for transfer documents and consumed qty from Manufacture documents
 	try:
 		has_partially_reserved = partially_reserved()
 
@@ -924,7 +927,6 @@ def assign_containers(item,used,work_order=None):
 	item=json.loads(item)
 	item_doc=frappe.get_doc("Item",item["item_code"])
 	if item_doc.is_containerized and item_doc.container_number_series:
-		# reserved_containers=reserve_once(item_doc,work_order)
 		if "s_warehouse" in item.keys():
 			query=get_containers(item["item_code"],item["s_warehouse"])
 		required_qty=item['qty']
@@ -961,6 +963,7 @@ def slit_container_and_unreserve_container(self):
 		
 @frappe.whitelist()
 def change_container_qty(data,item_name):
+	# called from js to change the qty in Container
 	data=json.loads(data)
 	available_qty_use=""
 	changed_qty=0
