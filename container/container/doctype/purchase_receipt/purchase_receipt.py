@@ -19,7 +19,7 @@ def on_submit(self,method):
             secondary_uom_cf=frappe.db.get_value("UOM Conversion Detail",{"parent":item.item_code,"uom_type":"Secondary UOM"},"conversion_factor")
             if not secondary_uom_cf:
                 frappe.throw("Please Mention secondary uom for this item "+item.item_code)
-            warehouse_temperature=frappe.db.get_value("Warehouse",self.set_warehouse,["temperature","name"],as_dict=True)
+            warehouse_temperature=frappe.db.get_value("Warehouse",item.warehouse,["temperature","name"],as_dict=True)
             if item_doc.dynamic_aging:
                 base_expiry_date,expiry_date,aging_rate,creation_date=calculate_base_and_room_erpiry_date(item_doc,warehouse_temperature) #Get the base and room temperature 
             try:
@@ -39,7 +39,7 @@ def on_submit(self,method):
                     container_doc =frappe.get_doc(dict(doctype = container_no_doc,
                                 container_no=container_list[container],
                                 item_code=item.item_code,
-                                warehouse=self.set_warehouse,
+                                warehouse=item.warehouse,
                                 item_name=item.item_name,
                                 item_group=item.item_group,
                                 description=item.description,
@@ -61,7 +61,7 @@ def on_submit(self,method):
                         container_doc.db_set("expiry_date",expiry_date)
                         container_doc.append("aging_history",{
                             "datetime":creation_date,
-                            "warehouse":self.set_warehouse,
+                            "warehouse":item.warehouse,
                             "warehouse_temperature":warehouse_temperature.temperature,
                             "aging_rate":aging_rate,
                             "base_expiry_date":base_expiry_date,
@@ -149,9 +149,10 @@ def get_uom_qty_and_expiry_date(container_no_list):
     qty=[]
     expiry_date=[]
     updated=[]
+    warehouse=[]
     container_no_list=json.loads(container_no_list)
     for container in container_no_list:
-        get_qty=frappe.db.get_value(container_no_doc,container,["primary_uom","primary_available_qty","updated"],as_dict=True)
+        get_qty=frappe.db.get_value(container_no_doc,container,["primary_uom","primary_available_qty","updated","warehouse"],as_dict=True)
         get_expiry_date=frappe.db.get_value(container_no_doc,container,"expiry_date")
         item_code=frappe.db.get_value(container_no_doc,container,"item_code")
         purchase_uom=frappe.db.get_value("Item",{"name":item_code},"purchase_uom")
@@ -166,6 +167,7 @@ def get_uom_qty_and_expiry_date(container_no_list):
                     uom.append(purchase_uom)
                     qty.append(get_qty.primary_available_qty/purchase_uom_conversion)
                     updated.append(get_qty.updated)
+                    warehouse.append(get_qty.warehouse)
                 if get_expiry_date:
                     expiry_date.append(get_expiry_date)
             else:
@@ -173,81 +175,132 @@ def get_uom_qty_and_expiry_date(container_no_list):
         else:
             frappe.throw("Please mention the Purchase UOM for the Item "+item_code)
             
-    return uom,qty,expiry_date,updated
+    return uom,qty,expiry_date,updated,warehouse
     
 
 @frappe.whitelist()
-def set_quantity_container_no(quantity,items,docstatus,docname):
+def set_quantity_container_no(quantity, items, docstatus, docname):
     try:
-        qty=0
-        uom=[]
-        validate=1
-        sp_quantity=json.loads(quantity)
-        items=json.loads(items)
+        sp_quantity = json.loads(quantity)
+        items = json.loads(items)
+
+        # Dictionary to sum up stock_qty for each item_code
+        item_total_stock_qty = {}
+        # Dictionary to track total quantity per warehouse for each item
+        warehouse_total_qty = {}
+
+        # Loop through the items and accumulate stock quantity for each warehouse
         for item in items:
-            item_doc=frappe.get_doc("Item",item["item_code"])
-            if item_doc.is_containerized and item_doc.container_number_series:
-                for sp in sp_quantity['container_no_qty']:
-                    if item['item_code'] == sp["item_code"]:
-                        qty+=sp["quantity"]
-                        uom.append(sp["uom"])
-                purchase_uom_conversion = frappe.db.get_value(
-                        "UOM Conversion Detail",
-                        {"parent": item_doc.item_code, "uom": item_doc.purchase_uom},
-                        "conversion_factor",
-                    )
-                qty= round(qty*purchase_uom_conversion,3)
-                # if it is a final update of this document validate the total
-                if docstatus=='1':
-                    print(sp_quantity['container_no_qty'][0]['container_no'])
-                    valt=(flt(item['stock_qty'])-flt(qty))
-                    if flt(qty) >flt(item['stock_qty']) and abs(valt)>0.1:
-                        frappe.throw(_("Quantity exceeded. Expected Total Qty of the item "+item['item_code']+" should not be more than "+str(item['qty'])))
-                        validate=0
-                    if flt(qty) < flt(item['stock_qty']) and abs(valt)>0.1:
-                        frappe.throw(_("Quantity of "+item['item_code']+" should be equal to the accepted qty "+str(item['qty'])))
-                        validate=0
-                for uom_val in uom:
-                    if item_doc.purchase_uom !=uom_val:
-                        frappe.throw(_("Uom Must be "+item_doc.purchase_uom+" "+sp["name"]))
-                        validate=0
-                qty=0
-                uom=[]
-        if validate:
+            item_code = item["item_code"]
+            warehouse = item["warehouse"]
+            
+            # Accumulate total stock quantity per item
+            if item_code not in item_total_stock_qty:
+                item_total_stock_qty[item_code] = 0
+            item_total_stock_qty[item_code] += flt(item['stock_qty'])
+
+            # Initialize warehouse-wise quantity tracking for each item
+            if item_code not in warehouse_total_qty:
+                warehouse_total_qty[item_code] = {}
+            
+            if warehouse not in warehouse_total_qty[item_code]:
+                warehouse_total_qty[item_code][warehouse] = 0
+            warehouse_total_qty[item_code][warehouse] += flt(item['stock_qty'])
+
+        # Loop to validate quantities for each item and warehouse
+        for item in items:
+            item_doc = frappe.get_doc("Item", item["item_code"])
+            item_code = item["item_code"]
+            original_warehouse = item["warehouse"]
+            total_qty = 0
+            uom = set()
+
+            # Sum up the total quantity and UOM from the container quantities
             for sp in sp_quantity['container_no_qty']:
-                # check if the container is updated(checkbox) then only update the Container
-                if docstatus=='1' or sp["updated"]==1:
-                    #fetch purchase UOM details
+                if item_code == sp["item_code"]:
+                    total_qty += flt(sp["quantity"])
+                    uom.add(sp["uom"])
+
+            # Validate UOM consistency
+            if len(uom) > 1:
+                frappe.throw(_("All UOMs must be the same for item {0}. Found multiple UOMs: {1}")
+                             .format(item_code, ', '.join(uom)))
+
+            # Ensure total quantity for each warehouse matches expected
+            for sp in sp_quantity['container_no_qty']:
+                if sp['item_code'] == item_code:
+                    container_warehouse = sp["warehouse"]
+                    container_qty = flt(sp["quantity"])
+
+                    # Check if the warehouse matches the original warehouse for the item
+                    if container_warehouse not in warehouse_total_qty[item_code]:
+                        frappe.throw(_("Item {0} cannot be moved from {1} to {2}.")
+                                     .format(item_code, original_warehouse, container_warehouse))
+
+                    # Check if the total quantity for this warehouse matches the original expected quantity
+                    expected_qty_in_warehouse = warehouse_total_qty[item_code][container_warehouse]
+                    current_qty_in_warehouse = sum(
+                        sp_["quantity"] for sp_ in sp_quantity['container_no_qty'] 
+                        if sp_['item_code'] == item_code and sp_["warehouse"] == container_warehouse
+                    )
+
+                    # Validation: total quantity in the same warehouse must match
+                    if current_qty_in_warehouse != expected_qty_in_warehouse:
+                        frappe.throw(_("The total quantity for item {0} in warehouse {1} should match the expected quantity {2}. Currently entered: {3}")
+                                     .format(item_code, container_warehouse, expected_qty_in_warehouse, current_qty_in_warehouse))
+
+            # Conversion and rounding for total quantities
+            purchase_uom_conversion = frappe.db.get_value(
+                "UOM Conversion Detail",
+                {"parent": item_doc.item_code, "uom": item_doc.purchase_uom},
+                "conversion_factor"
+            )
+            total_qty = round(total_qty * purchase_uom_conversion, 3)
+
+            # Final check based on total stock_qty and document status
+            total_stock_qty = item_total_stock_qty[item_code]
+            if docstatus == '1':
+                if flt(total_qty) > flt(total_stock_qty):
+                    frappe.throw(_("Quantity exceeded. Expected Total Qty of the item {0} in warehouse {1} should not be more than {2}")
+                                 .format(item_code, original_warehouse, total_stock_qty))
+                if flt(total_qty) < flt(total_stock_qty):
+                    frappe.throw(_("Quantity of {0} in warehouse {1} should be equal to the accepted qty {2}")
+                                 .format(item_code, original_warehouse, total_stock_qty))
+
+        # Update containers if quantities are valid
+        if docstatus == '1' or any(sp["updated"] == 1 for sp in sp_quantity['container_no_qty']):
+            for sp in sp_quantity['container_no_qty']:
+                if docstatus == '1' or sp["updated"] == 1:
                     purchase_uom_conversion = frappe.db.get_value(
                         "UOM Conversion Detail",
                         {"parent": sp['item_code'], "uom": sp["uom"]},
-                        "conversion_factor",
+                        "conversion_factor"
                     )
                     secondary_uom_cf = frappe.db.get_value(
                         "UOM Conversion Detail",
                         {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
-                        "conversion_factor",
+                        "conversion_factor"
                     )
 
-                    sp_doc=frappe.get_doc(container_no_doc,sp['container_no'])
-                    #as purchase UOM might be secondary UOM
-                    sp_doc.db_set('primary_available_qty',sp['quantity']*purchase_uom_conversion)
-                    sp_doc.db_set("secondary_available_qty", (sp['quantity']*purchase_uom_conversion)/secondary_uom_cf)
-                    sp_doc.db_set('updated',sp['updated'])
-                    if docstatus=='1':
-                        sp_doc.db_set('status','Active')
-                    if 'expiry_date' in sp.keys():
-                        sp_doc.db_set('expiry_date',sp['expiry_date'])
-                    frappe.db.commit()
-        if docstatus=='1':
-            frappe.db.set_value('Purchase Receipt', {'name': docname}, "button_hide", 1)
+                    sp_doc = frappe.get_doc("Container", sp['container_no'])
+                    sp_doc.db_set('primary_available_qty', flt(sp['quantity']) * purchase_uom_conversion)
+                    sp_doc.db_set("secondary_available_qty", flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf)
+                    sp_doc.db_set('updated', sp['updated'])
 
+                    if docstatus == '1':
+                        sp_doc.db_set('status', 'Active')
+                    if 'expiry_date' in sp:
+                        sp_doc.db_set('expiry_date', sp['expiry_date'])
+
+                    frappe.db.commit()
+                    
+        if docstatus == '1':
+            frappe.db.set_value('Purchase Receipt', {'name': docname}, "button_hide", 1)
         return docstatus
     except Exception as e:
         frappe.db.rollback()
-        frappe.log_error("An error occurred: {}".format(str(e)))
-        frappe.throw("An error occurred: {}".format(str(e)))
-        return 0
+        frappe.log_error(f"An error occurred: {str(e)}")
+        frappe.throw(f"An error occurred: {str(e)}")
 
 @frappe.whitelist()
 def button_hide(quantity, name):

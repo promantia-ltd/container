@@ -455,6 +455,7 @@ frappe.ui.form.on('Stock Entry', {
 		});
     },
 	assign_containers:function(frm){
+		//on button click assign the containers
 		let used=[];
 		if(frm.doc.items && frm.doc.docstatus==0 && frm.doc.stock_entry_type!="Manufacture"){
 		$.each(frm.doc.items,function(idx, row){
@@ -724,6 +725,7 @@ frappe.ui.form.on('Stock Entry Detail', {
 	}
 	},
 	change_qty:function(frm,cdt,cdn){
+		//if we want to change the conatiner quantity
 		let data=locals[cdt][cdn];
 		let containers=data.containers.split(",")
 		let available_qty=data.available_qty.split(",");
