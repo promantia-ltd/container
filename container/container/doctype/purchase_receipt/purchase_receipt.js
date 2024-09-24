@@ -41,6 +41,7 @@ frappe.ui.form.on('Purchase Receipt Item', {
 	}
 })
 function container_and_batch_selector(frm,cdt,cdn){
+	// container batch bundle functionality
 	let item = locals[cdt][cdn];
 		let me = this;
 		let path = "assets/container/js/utils/container_batch_selector.js";
@@ -75,6 +76,7 @@ function container_and_batch_selector(frm,cdt,cdn){
 			});
 }
 function set_quantity_for_container_nos(items,frm){
+	// set qty in pop up for containers
 	let container_no_list=[];
 	let qty=[];
 	let uom=[];
@@ -84,6 +86,7 @@ function set_quantity_for_container_nos(items,frm){
 	let is_container_no=false;
 	let has_bobbin=[];
 	let dummy_containers=[]
+	let warehouse=[]
     $.each(items, function (idx,item) {
 		if(item.containers){
 			is_container_no=true;
@@ -111,12 +114,13 @@ function set_quantity_for_container_nos(items,frm){
 				qty.push(r.message[1])
 				expiry_date.push(r.message[2])
 				updated.push(r.message[3])
+				warehouse.push(r.message[4])
 			}
 		});
 	if(is_container_no==true){
 		let container_no_dict_total=[]
 		for (let i = 0; i < container_no_list.length; i++) {
-			let container_no_dict=[{'container_no':container_no_list[i],'container':dummy_containers[i],'item_code':item_list[i],'quantity':qty[0][i],'uom': uom[0][i],'expiry_date':expiry_date[0][i],'updated':updated[0][i]}]
+			let container_no_dict=[{'container_no':container_no_list[i],'warehouse':warehouse[0][i],'container':dummy_containers[i],'item_code':item_list[i],'quantity':qty[0][i],'uom': uom[0][i],'expiry_date':expiry_date[0][i],'updated':updated[0][i]}]
 			container_no_dict_total=container_no_dict_total.concat(container_no_dict)
 		}
 		let fields1 = [];
@@ -126,6 +130,14 @@ function set_quantity_for_container_nos(items,frm){
 				fieldname: 'container_no',
 				fieldtype: 'Link',
 				options: "Container",
+				in_list_view: 1,
+			    columns:2
+			},
+			{
+				label: "Accepted Warehouse",
+				fieldname: 'warehouse',
+				fieldtype: 'Link',
+				options: "Warehouse",
 				in_list_view: 1,
 			    columns:2
 			},
