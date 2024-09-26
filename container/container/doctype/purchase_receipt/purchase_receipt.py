@@ -245,7 +245,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
                     )
 
                     # Validation: total quantity in the same warehouse must match
-                    if current_qty_in_warehouse != expected_qty_in_warehouse:
+                    if current_qty_in_warehouse != expected_qty_in_warehouse and docstatus==1:
                         frappe.throw(_("The total quantity for item {0} in warehouse {1} should match the expected quantity {2}. Currently entered: {3}")
                                      .format(item_code, container_warehouse, expected_qty_in_warehouse, current_qty_in_warehouse))
 
