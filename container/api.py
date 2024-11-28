@@ -2,6 +2,9 @@ import frappe
 from datetime import datetime, timedelta
 from container.container.doctype.purchase_receipt.purchase_receipt import get_auto_container_nos,calculate_base_and_room_erpiry_date,get_aging_rate
 from container.container.doctype.stock_entry.stock_entry import partially_reserved
+from frappe import _
+from frappe.exceptions import ValidationError
+
 
 container_doctype="Container"
 
@@ -358,7 +361,7 @@ class StatusUpdaterCustom(StatusUpdater):
         ):
             return
 
-        elif (self.doctype in ["Purchase Invoice", "Purchase Receipt"]):
+        elif self.doctype in ["Purchase Invoice", "Purchase Receipt"]:
             return
 
         if qty_or_amount == "qty":
@@ -382,7 +385,6 @@ class StatusUpdaterCustom(StatusUpdater):
             )
             + "<br><br>"
             + action_msg,
-            OverAllowanceError,
+            ValidationError,
             title=_("Limit Crossed"),
         )
-
