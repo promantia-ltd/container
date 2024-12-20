@@ -70,9 +70,9 @@ class Container(Document):
 		self.brand = item.brand
 		self.warranty_period = item.warranty_period
 		if self.primary_available_qty<0:
-			frappe.throw("Primary Available Qty Not Less Than Zero")
+			self.primary_available_qty = 0
 		elif self.secondary_available_qty<0:
-			frappe.throw("Secondary Available Qty Not Less Than Zero")
+			self.secondary_available_qty = 0
 
 	def set_qty(self):
 		secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':self.item_code,'uom_type':'Secondary UOM'},fields={'*'})
