@@ -193,7 +193,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
         for item in items:
             item_code = item["item_code"]
             warehouse = item["warehouse"]
-            
+
             # Accumulate total stock quantity per item
             if item_code not in item_total_stock_qty:
                 item_total_stock_qty[item_code] = 0
@@ -202,7 +202,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
             # Initialize warehouse-wise quantity tracking for each item
             if item_code not in warehouse_total_qty:
                 warehouse_total_qty[item_code] = {}
-            
+
             if warehouse not in warehouse_total_qty[item_code]:
                 warehouse_total_qty[item_code][warehouse] = 0
             warehouse_total_qty[item_code][warehouse] += flt(item['stock_qty'])
@@ -245,7 +245,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
                     )
 
                     # Validation: total quantity in the same warehouse must match
-                    if current_qty_in_warehouse != expected_qty_in_warehouse and docstatus==1:
+                    if current_qty_in_warehouse != expected_qty_in_warehouse and docstatus == 1:
                         frappe.throw(_("The total quantity for item {0} in warehouse {1} should match the expected quantity {2}. Currently entered: {3}")
                                      .format(item_code, container_warehouse, expected_qty_in_warehouse, current_qty_in_warehouse))
 
@@ -287,13 +287,16 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
                     sp_doc.db_set("secondary_available_qty", flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf)
                     sp_doc.db_set('updated', sp['updated'])
 
+                    # Update custom_container_reference and status
                     if docstatus == '1':
                         sp_doc.db_set('status', 'Active')
+                        sp_doc.db_set('custom_container_reference', sp['custom_container_reference'])
+
                     if 'expiry_date' in sp:
                         sp_doc.db_set('expiry_date', sp['expiry_date'])
 
                     frappe.db.commit()
-                    
+
         if docstatus == '1':
             frappe.db.set_value('Purchase Receipt', {'name': docname}, "button_hide", 1)
         return docstatus
@@ -301,6 +304,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
         frappe.db.rollback()
         frappe.log_error(f"An error occurred: {str(e)}")
         frappe.throw(f"An error occurred: {str(e)}")
+
 
 @frappe.whitelist()
 def button_hide(quantity, name):
