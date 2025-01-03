@@ -290,7 +290,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
                     # Update custom_container_reference and status
                     if docstatus == '1':
                         sp_doc.db_set('status', 'Active')
-                        sp_doc.db_set('custom_container_reference', sp['container'])
+                        sp_doc.db_set('custom_container_reference', sp['custom_container_reference'])
 
                     if 'expiry_date' in sp:
                         sp_doc.db_set('expiry_date', sp['expiry_date'])
@@ -304,7 +304,6 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
         frappe.db.rollback()
         frappe.log_error(f"An error occurred: {str(e)}")
         frappe.throw(f"An error occurred: {str(e)}")
-
 
 
 @frappe.whitelist()
