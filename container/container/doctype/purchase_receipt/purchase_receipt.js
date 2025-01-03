@@ -92,6 +92,7 @@ function set_quantity_for_container_nos(items, frm) {
     let is_container_no = false;
     let dummy_containers = [];
     let warehouse = [];
+    let container_ref_list = []; // To hold Container Reference Numbers
     let container_no_dict_total = [];
 
     // Loop through the items to prepare container data
@@ -128,10 +129,26 @@ function set_quantity_for_container_nos(items, frm) {
         },
     });
 
-    if (is_container_no) {
-        for (let i = 0; i < container_no_list.length; i++) {
-            let container_no_dict = [
-                {
+    // Fetch Container Reference Numbers
+    frappe.call({
+        method: "frappe.client.get_list",
+        args: {
+            doctype: "Container",
+            filters: {
+                name: ["in", container_no_list],
+            },
+            fields: ["name", "custom_container_reference"],
+        },
+        async: false,
+        callback: function (r) {
+            const container_refs = {};
+            r.message.forEach((container) => {
+                container_refs[container.name] = container.custom_container_reference || "";
+            });
+
+            // Build container data including Container Reference Number
+            for (let i = 0; i < container_no_list.length; i++) {
+                container_no_dict_total.push({
                     container_no: container_no_list[i],
                     warehouse: warehouse[0][i],
                     container: dummy_containers[i],
@@ -140,132 +157,127 @@ function set_quantity_for_container_nos(items, frm) {
                     uom: uom[0][i],
                     expiry_date: expiry_date[0][i],
                     updated: updated[0][i],
-                },
-            ];
-            container_no_dict_total = container_no_dict_total.concat(container_no_dict);
-        }
+                    custom_container_reference: container_refs[container_no_list[i]] || "", // Populate reference number
+                });
+            }
+        },
+    });
 
-        let fields1 = [
-            {
-                label: "Container",
-                fieldname: "container_no",
-                fieldtype: "Link",
-                options: "Container",
-                in_list_view: 1,
-                columns: 2,
-            },
-            {
-                label: "Accepted Warehouse",
-                fieldname: "warehouse",
-                fieldtype: "Link",
-                options: "Warehouse",
-                in_list_view: 1,
-                columns: 2,
-            },
-            {
-                label: "Container Ref",
-                fieldname: "container",
-                fieldtype: "Data",
-                in_list_view: 1,
-                columns: 1,
-            },
-            {
-                label: "Item",
-                fieldname: "item_code",
-                fieldtype: "Link",
-                options: "Item",
-                in_list_view: 1,
-                columns: 2,
-                read_only: 1,
-            },
-            {
-                label: "Qty",
-                fieldname: "quantity",
-                fieldtype: "Float",
-                in_list_view: 1,
-                reqd: 1,
-                default: 0,
-                columns: 1,
-                onchange: function (e) {
-                    let grid_row = $(e.target).closest(".grid-row");
-                    let grid_row_index = grid_row.attr("data-idx") - 1;
-                    let grid_data = cur_dialog.fields_dict.container_no_qty.grid.get_data();
-                    grid_data[grid_row_index].updated = 1;
-                    cur_dialog.fields_dict.container_no_qty.grid.refresh();
-                },
-            },
-            {
-                label: "UOM",
-                fieldname: "uom",
-                fieldtype: "Link",
-                options: "UOM",
-                in_list_view: 1,
-                reqd: 1,
-                columns: 1,
-            },
-            {
-                label: "Updated",
-                fieldname: "updated",
-                fieldtype: "Check",
-                default: 0,
-                in_list_view: 1,
-                columns: 1,
-            },
-        ];
-
-        fields1 = fields1.concat({
-            label: "Expiry Date",
-            fieldname: "expiry_date",
-            fieldtype: "Date",
+    // Create the dialog
+    let fields1 = [
+        {
+            label: "Container",
+            fieldname: "container_no",
+            fieldtype: "Link",
+            options: "Container",
             in_list_view: 1,
             columns: 2,
-            default: "",
-        });
+        },
+        {
+            label: "Accepted Warehouse",
+            fieldname: "warehouse",
+            fieldtype: "Link",
+            options: "Warehouse",
+            in_list_view: 1,
+            columns: 2,
+        },
+        {
+            label: "Container Ref",
+            fieldname: "custom_container_reference",
+            fieldtype: "Data",
+            in_list_view: 1,
+            columns: 1,
+        },
+        {
+            label: "Item",
+            fieldname: "item_code",
+            fieldtype: "Link",
+            options: "Item",
+            in_list_view: 1,
+            columns: 2,
+            read_only: 1,
+        },
+        {
+            label: "Qty",
+            fieldname: "quantity",
+            fieldtype: "Float",
+            in_list_view: 1,
+            reqd: 1,
+            default: 0,
+            columns: 1,
+        },
+        {
+            label: "UOM",
+            fieldname: "uom",
+            fieldtype: "Link",
+            options: "UOM",
+            in_list_view: 1,
+            reqd: 1,
+            columns: 1,
+        },
+        {
+            label: "Updated",
+            fieldname: "updated",
+            fieldtype: "Check",
+            default: 0,
+            in_list_view: 1,
+            columns: 1,
+        },
+    ];
 
-        let fields = [
-            {
-                label: "Container Nos and Quantities",
-                fieldtype: "Table",
-                fieldname: "container_no_qty",
-                fields: fields1,
-                cannot_add_rows: true,
-                cannot_delete_rows: 1,
-                in_place_edit: true,
-                data: container_no_dict_total,
-            },
-        ];
+    fields1 = fields1.concat({
+        label: "Expiry Date",
+        fieldname: "expiry_date",
+        fieldtype: "Date",
+        in_list_view: 1,
+        columns: 2,
+        default: "",
+    });
 
-        let d = new frappe.ui.Dialog({
-            size: "large",
-            title: "Input the quantity for each container number",
-            fields: fields,
-            primary_action_label: "Save and Submit",
-            primary_action() {
-                let data = d.get_values();
+    let fields = [
+        {
+            label: "Container Nos and Quantities",
+            fieldtype: "Table",
+            fieldname: "container_no_qty",
+            fields: fields1,
+            cannot_add_rows: true,
+            cannot_delete_rows: 1,
+            in_place_edit: true,
+            data: container_no_dict_total,
+        },
+    ];
 
-                frappe.call({
-                    method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
-                    args: {
-                        quantity: JSON.stringify(data),
-                        items: JSON.stringify(frm.doc.items),
-                        docstatus: 1, // Ensure the status becomes active
-                        docname: frm.doc.name,
-                    },
-                    async: false,
-                    callback: function (r) {
-                        if (r.message === 1) {
-                            frappe.msgprint("Containers updated and activated successfully!");
-                        }
-                    },
-                });
+    let d = new frappe.ui.Dialog({
+        size: "large",
+        title: "Input the quantity for each container number",
+        fields: fields,
+        primary_action_label: "Save and Submit",
+        primary_action() {
+            let data = d.get_values();
 
-                d.hide();
-            },
-        });
+            frappe.call({
+                method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
+                args: {
+                    quantity: JSON.stringify(data),
+                    items: JSON.stringify(frm.doc.items),
+                    docstatus: 1,
+                    docname: frm.doc.name,
+                },
+                async: false,
+                callback: function (r) {
+                    if (r.message === 1) {
+                        frappe.msgprint("Containers updated and activated successfully!");
+                    }
+                },
+            });
 
-        d.show();
-    }
+            d.hide();
+        },
+    });
+
+    d.show();
 }
+
 
 function set_bobbin_weight_for_container(items,frm){
 	let count=0;
