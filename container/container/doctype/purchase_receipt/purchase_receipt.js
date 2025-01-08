@@ -261,12 +261,6 @@ function set_quantity_for_container_nos(items, frm) {
                     quantity: JSON.stringify(data),
                     docstatus: 0, // Save only, do not change container status
                 },
-                async: false,
-                callback: function (r) {
-                    if (r.message === 1) {
-                        frappe.msgprint("Containers saved successfully!");
-                    }
-                },
             });
 
             d.hide();
