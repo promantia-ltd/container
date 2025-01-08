@@ -367,3 +367,24 @@ def get_containers(no_of_containers,name):
             containers+=container_nos[container]
     # frappe.db.set_value("Purchase Receipt Item",name,"dummy_containers",containers)
     return container_nos
+
+@frappe.whitelist()
+def save_container_reference_number(quantity, docstatus):
+    try:
+        sp_quantity = json.loads(quantity)
+
+        for sp in sp_quantity['container_no_qty']:
+            # Update custom_container_reference in Container document
+            sp_doc = frappe.get_doc("Container", sp['container_no'])
+            sp_doc.db_set('custom_container_reference', sp['custom_container_reference'])
+
+            # Ensure container status remains unchanged (Inactive)
+            if docstatus == '0':  # Save only
+                sp_doc.db_set('status', 'Inactive')
+
+        frappe.db.commit()
+        return 1
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error saving container reference number: {str(e)}")
+        frappe.throw(f"Error saving container reference number: {str(e)}")
