@@ -251,22 +251,20 @@ function set_quantity_for_container_nos(items, frm) {
         size: "large",
         title: "Input the quantity for each container number",
         fields: fields,
-        primary_action_label: "Save and Submit",
+        primary_action_label: "Save", // Primary button: Save
         primary_action() {
             let data = d.get_values();
 
             frappe.call({
-                method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
+                method: "container.container.doctype.purchase_receipt.purchase_receipt.save_container_reference_number",
                 args: {
                     quantity: JSON.stringify(data),
-                    items: JSON.stringify(frm.doc.items),
-                    docstatus: 1,
-                    docname: frm.doc.name,
+                    docstatus: 0, // Save only, do not change container status
                 },
                 async: false,
                 callback: function (r) {
                     if (r.message === 1) {
-                        frappe.msgprint("Containers updated and activated successfully!");
+                        frappe.msgprint("Containers saved successfully!");
                     }
                 },
             });
@@ -274,6 +272,30 @@ function set_quantity_for_container_nos(items, frm) {
             d.hide();
         },
     });
+
+    // Add the secondary action button
+    d.set_secondary_action(() => {
+        let data = d.get_values();
+
+        frappe.call({
+            method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
+            args: {
+                quantity: JSON.stringify(data),
+                items: JSON.stringify(frm.doc.items),
+                docstatus: 1, // Save and submit
+                docname: frm.doc.name,
+            },
+            async: false,
+            callback: function (r) {
+                if (r.message === 1) {
+                    frappe.msgprint("Containers updated and activated successfully!");
+                }
+            },
+        });
+
+        d.hide();
+    });
+    d.set_secondary_action_label("Save and Submit"); // Secondary button: Save and Submit
 
     d.show();
 }
