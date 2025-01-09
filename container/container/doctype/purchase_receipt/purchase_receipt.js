@@ -20,7 +20,19 @@ frappe.ui.form.on('Purchase Receipt', {
 		if(frm.doc.docstatus !=1){
 		set_bobbin_weight_for_container(frm.doc.items,frm)
 		}
-	}
+	},
+
+    onload: function (frm) {
+        // Ensure `is_containerized` is set correctly on page load
+        frm.doc.items.forEach(function (item) {
+            frappe.db.get_value("Item", { name: item.item_code }, "is_containerized")
+                .then(r => {
+                    if (r.message) {
+                        frappe.model.set_value(item.doctype, item.name, "is_containerized", r.message.is_containerized);
+                    }
+                });
+        });
+    },
 })
 frappe.ui.form.on('Purchase Receipt Item', {
 	item_code:function(frm,cdt,cdn){
