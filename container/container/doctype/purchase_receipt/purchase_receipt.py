@@ -367,3 +367,37 @@ def get_containers(no_of_containers,name):
             containers+=container_nos[container]
     # frappe.db.set_value("Purchase Receipt Item",name,"dummy_containers",containers)
     return container_nos
+
+@frappe.whitelist()
+def save_container_reference_number(quantity, docstatus):
+    try:
+        sp_quantity = json.loads(quantity)
+
+        for sp in sp_quantity['container_no_qty']:
+            # Fetch the container document
+            sp_doc = frappe.get_doc("Container", sp['container_no'])
+
+            # Update custom_container_reference
+            sp_doc.db_set('custom_container_reference', sp['custom_container_reference'])
+
+            # Update primary_available_qty
+            purchase_uom_conversion = frappe.db.get_value(
+                "UOM Conversion Detail",
+                {"parent": sp['item_code'], "uom": sp['uom']},
+                "conversion_factor"
+            )
+            if not purchase_uom_conversion:
+                frappe.throw(f"UOM conversion factor missing for item {sp['item_code']} and UOM {sp['uom']}")
+
+            sp_doc.db_set('primary_available_qty', flt(sp['quantity']) * purchase_uom_conversion)
+
+            # Ensure container status remains inactive for Save action
+            if docstatus == '0':  # Save only
+                sp_doc.db_set('status', 'Inactive')
+
+        frappe.db.commit()
+        return 1
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error saving container reference number and quantity: {str(e)}")
+        frappe.throw(f"Error saving container reference number and quantity: {str(e)}")

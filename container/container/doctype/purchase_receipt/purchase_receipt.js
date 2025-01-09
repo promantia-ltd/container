@@ -20,7 +20,19 @@ frappe.ui.form.on('Purchase Receipt', {
 		if(frm.doc.docstatus !=1){
 		set_bobbin_weight_for_container(frm.doc.items,frm)
 		}
-	}
+	},
+
+    onload: function (frm) {
+        // Ensure `is_containerized` is set correctly on page load
+        frm.doc.items.forEach(function (item) {
+            frappe.db.get_value("Item", { name: item.item_code }, "is_containerized")
+                .then(r => {
+                    if (r.message) {
+                        frappe.model.set_value(item.doctype, item.name, "is_containerized", r.message.is_containerized);
+                    }
+                });
+        });
+    },
 })
 frappe.ui.form.on('Purchase Receipt Item', {
 	item_code:function(frm,cdt,cdn){
@@ -251,29 +263,45 @@ function set_quantity_for_container_nos(items, frm) {
         size: "large",
         title: "Input the quantity for each container number",
         fields: fields,
-        primary_action_label: "Save and Submit",
+        primary_action_label: "Save", // Primary button: Save
         primary_action() {
             let data = d.get_values();
 
             frappe.call({
-                method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
+                method: "container.container.doctype.purchase_receipt.purchase_receipt.save_container_reference_number",
                 args: {
                     quantity: JSON.stringify(data),
-                    items: JSON.stringify(frm.doc.items),
-                    docstatus: 1,
-                    docname: frm.doc.name,
-                },
-                async: false,
-                callback: function (r) {
-                    if (r.message === 1) {
-                        frappe.msgprint("Containers updated and activated successfully!");
-                    }
+                    docstatus: 0, // Save only, do not change container status
                 },
             });
 
             d.hide();
         },
     });
+
+    // Add the secondary action button
+    d.set_secondary_action(() => {
+        let data = d.get_values();
+
+        frappe.call({
+            method: "container.container.doctype.purchase_receipt.purchase_receipt.set_quantity_container_no",
+            args: {
+                quantity: JSON.stringify(data),
+                items: JSON.stringify(frm.doc.items),
+                docstatus: 1, // Save and submit
+                docname: frm.doc.name,
+            },
+            async: false,
+            callback: function (r) {
+                if (r.message === 1) {
+                    frappe.msgprint("Containers updated and activated successfully!");
+                }
+            },
+        });
+
+        d.hide();
+    });
+    d.set_secondary_action_label("Save and Submit"); // Secondary button: Save and Submit
 
     d.show();
 }
