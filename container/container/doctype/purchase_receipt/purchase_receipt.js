@@ -142,6 +142,41 @@ function set_quantity_for_container_nos(items, frm) {
     });
 
     // Fetch Container Reference Numbers
+    // frappe.call({
+    //     method: "frappe.client.get_list",
+    //     args: {
+    //         doctype: "Container",
+    //         filters: {
+    //             name: ["in", container_no_list],
+    //         },
+    //         fields: ["name", "custom_container_reference"],
+    //     },
+    //     async: false,
+    //     callback: function (r) {
+    //         console.log("Fetched Container References:", r.message);
+
+    //         const container_refs = {};
+    //         r.message.forEach((container) => {
+    //             container_refs[container.name] = container.custom_container_reference || "";
+    //         });
+
+    //         // Build container data including Container Reference Number
+    //         for (let i = 0; i < container_no_list.length; i++) {
+    //             container_no_dict_total.push({
+    //                 container_no: container_no_list[i],
+    //                 warehouse: warehouse[0][i],
+    //                 container: dummy_containers[i],
+    //                 item_code: item_list[i],
+    //                 quantity: qty[0][i],
+    //                 uom: uom[0][i],
+    //                 expiry_date: expiry_date[0][i],
+    //                 updated: updated[0][i],
+    //                 custom_container_reference: container_refs[container_no_list[i]] || "", // Populate reference number
+    //             });
+    //         }
+    //     },
+    // });
+
     frappe.call({
         method: "frappe.client.get_list",
         args: {
@@ -150,14 +185,16 @@ function set_quantity_for_container_nos(items, frm) {
                 name: ["in", container_no_list],
             },
             fields: ["name", "custom_container_reference"],
+            limit_page_length: 1000,  // Fetch up to 1000 records
         },
         async: false,
         callback: function (r) {
+    
             const container_refs = {};
             r.message.forEach((container) => {
                 container_refs[container.name] = container.custom_container_reference || "";
             });
-
+    
             // Build container data including Container Reference Number
             for (let i = 0; i < container_no_list.length; i++) {
                 container_no_dict_total.push({
@@ -174,6 +211,7 @@ function set_quantity_for_container_nos(items, frm) {
             }
         },
     });
+    
 
     // Create the dialog
     let fields1 = [
