@@ -141,7 +141,7 @@ function set_quantity_for_container_nos(items, frm) {
         },
     });
 
-    // Fetch Container Reference Numbers
+    
     frappe.call({
         method: "frappe.client.get_list",
         args: {
@@ -150,14 +150,16 @@ function set_quantity_for_container_nos(items, frm) {
                 name: ["in", container_no_list],
             },
             fields: ["name", "custom_container_reference"],
+            limit_page_length: 1000,  // Fetch up to 1000 records
         },
         async: false,
         callback: function (r) {
+    
             const container_refs = {};
             r.message.forEach((container) => {
                 container_refs[container.name] = container.custom_container_reference || "";
             });
-
+    
             // Build container data including Container Reference Number
             for (let i = 0; i < container_no_list.length; i++) {
                 container_no_dict_total.push({
@@ -174,6 +176,7 @@ function set_quantity_for_container_nos(items, frm) {
             }
         },
     });
+    
 
     // Create the dialog
     let fields1 = [
