@@ -141,7 +141,7 @@ function set_quantity_for_container_nos(items, frm) {
         },
     });
 
-   
+    
     frappe.call({
         method: "frappe.client.get_list",
         args: {
