@@ -8,76 +8,171 @@ from frappe.utils import (
     cint
 )
 from frappe.utils import flt
+
 container_no_doc="Container"
-def on_submit(self,method):
-    container_list=[]
+
+def delete_entities(self):
+    for item in self.get("items"):
+        if item.containers:
+            entities = item.containers.split(
+                "\n"
+            )  # Assuming containers are stored as newline-separated
+            for entity_name in entities:
+                frappe.delete_doc("Container", entity_name, force=1)
+
+            # Clear the container field
+            item.containers = ""
+            item.db_set("containers", "")
+            # Explicitly update the database field
+
+    frappe.db.commit()  # Ensure rollback changes are committed
+
+def on_submit(self, method):
+    try:
+        for item in self.get("items"):
+            # Handle containerized items
+            if frappe.db.get_value(
+                "Item", {"name": item.item_code}, "is_containerized"
+            ):
+                # Update Stock Ledger Entry
+                sle = frappe.get_doc(
+                    "Stock Ledger Entry",
+                    {
+                        "voucher_no": item.parent,
+                        "item_code": item.item_code,
+                        "voucher_detail_no": item.name,
+                    },
+                )
+
+                sle.db_set("containers", item.containers)
+
+    except Exception as e:
+        frappe.db.rollback()
+        # Rollback created entities if an exception occurs
+        delete_entities(self)
+        frappe.log_error(
+            frappe.get_traceback(), f"Error in on_submit for GRN {self.name}"
+        )
+        frappe.throw(
+            _(
+                f"An error occurred while processing the submission. Created entities have been rolled back."
+            )
+        )
+
+
+def container_creation(self, method):
+    container_list = []
     bobbin_weight=[]
     for item in self.get("items"):
-        item_doc=frappe.get_doc("Item",item.item_code)
-        if item_doc.is_containerized and item_doc.container_number_series:
-            secondary_uom=frappe.db.get_value("UOM Conversion Detail",{"parent":item.item_code,"uom_type":"Secondary UOM"},"uom")
-            secondary_uom_cf=frappe.db.get_value("UOM Conversion Detail",{"parent":item.item_code,"uom_type":"Secondary UOM"},"conversion_factor")
-            if not secondary_uom_cf:
-                frappe.throw("Please Mention secondary uom for this item "+item.item_code)
-            warehouse_temperature=frappe.db.get_value("Warehouse",item.warehouse,["temperature","name"],as_dict=True)
-            if item_doc.dynamic_aging:
-                base_expiry_date,expiry_date,aging_rate,creation_date=calculate_base_and_room_erpiry_date(item_doc,warehouse_temperature) #Get the base and room temperature 
-            try:
-                container_series=frappe.db.get_value("Item",{"name":item.item_code,"is_containerized":1},"container_number_series")
-                container_nos = get_auto_container_nos(container_series,item.no_of_containers)
-                frappe.db.set_value("Purchase Receipt Item",{"parent":self.name,"name":item.name},"containers",container_nos)
-                item.containers=container_nos
-                container_list=container_nos.split("\n")
-                if item.bobbin_weight:
+        item_doc = frappe.get_doc("Item", item.item_code)
+        if item.containers:
+            delete_entities(self)
+            
+        if item.bobbin_weight:
                     bobbin_weight.extend(item.bobbin_weight.split("\n"))
+        else:
+            for val in range(int(item.no_of_containers)):
+                bobbin_weight.append(0)
+
+        if item_doc.is_containerized and item_doc.container_number_series:
+            secondary_uom = frappe.db.get_value(
+                "UOM Conversion Detail",
+                {"parent": item.item_code, "uom_type": "Secondary UOM"},
+                "uom",
+            )
+            secondary_uom_cf = frappe.db.get_value(
+                "UOM Conversion Detail",
+                {"parent": item.item_code, "uom_type": "Secondary UOM"},
+                "conversion_factor",
+            )
+            warehouse_temperature = frappe.db.get_value(
+                "Warehouse", item.warehouse, ["temperature", "name"], as_dict=True
+            )
+            if item_doc.dynamic_aging:
+                base_expiry_date, expiry_date, aging_rate, creation_date = (
+                    calculate_base_and_room_erpiry_date(item_doc, warehouse_temperature)
+                )  # Get the base and room temperature
+            try:
+                container_series = frappe.db.get_value(
+                    "Item",
+                    {"name": item.item_code, "is_containerized": 1},
+                    "container_number_series",
+                )
+                container_nos = get_auto_container_nos(
+                    container_series, item.no_of_containers
+                )
+                frappe.db.set_value(
+                    "Purchase Receipt Item",
+                    {"parent": self.name, "name": item.name},
+                    "containers",
+                    container_nos,
+                )
+                item.containers = container_nos
+                container_list = container_nos.split("\n")
+                # Added the below if else condition in order handle the item without secondary UOM at item master
+                if secondary_uom:
+                    secondary_uom_value = secondary_uom
+                    secondary_avail_qty = (
+                        item.stock_qty / item.no_of_containers
+                    ) / secondary_uom_cf
                 else:
-                    for val in range(int(item.no_of_containers)):
-                        bobbin_weight.append(0)
-                sle=frappe.get_doc("Stock Ledger Entry",{"voucher_no":item.parent,"item_code":item.item_code,"voucher_detail_no":item.name})
-                sle.db_set("containers",container_nos)
+                    secondary_uom_value, secondary_avail_qty = "", ""
                 for container in range(len(container_list)):
-                    container_doc =frappe.get_doc(dict(doctype = container_no_doc,
-                                container_no=container_list[container],
-                                item_code=item.item_code,
-                                warehouse=item.warehouse,
-                                item_name=item.item_name,
-                                item_group=item.item_group,
-                                description=item.description,
-                                purchase_document_type=self.doctype,
-                                purchase_document_no=self.name,
-                                supplier=self.supplier,
-                                supplier_name=self.supplier_name,
-                                primary_uom=item.stock_uom,
-                                primary_available_qty=(item.stock_qty/item.no_of_containers),
-                                secondary_uom=secondary_uom,
-                                secondary_available_qty=((item.stock_qty/item.no_of_containers)/secondary_uom_cf),
-                                status="Inactive",
-                                uom=item.stock_uom,
-                                batch_no=item.batch_no,
-                                purchase_rate=item.rate
-                                ))
+                    container_doc = frappe.get_doc(
+                        dict(
+                            doctype=container_no_doc,
+                            container_no=container_list[container],
+                            item_code=item.item_code,
+                            warehouse=item.warehouse,
+                            item_name=item.item_name,
+                            item_group=item.item_group,
+                            description=item.description,
+                            purchase_document_type=self.doctype,
+                            purchase_document_no=self.name,
+                            supplier=self.supplier,
+                            supplier_name=self.supplier_name,
+                            primary_uom=item.stock_uom,
+                            primary_available_qty=(
+                                item.stock_qty / item.no_of_containers
+                            ),
+                            secondary_uom=secondary_uom,
+                            secondary_available_qty=((item.stock_qty/item.no_of_containers)/secondary_uom_cf),
+                            status="Inactive",
+                            uom=item.stock_uom,
+                            batch_no=item.batch_no,
+                            purchase_rate=item.rate
+                        )
+                    )
                     if item_doc.dynamic_aging:
-                        container_doc.db_set("base_expiry_date",base_expiry_date)
-                        container_doc.db_set("expiry_date",expiry_date)
-                        container_doc.append("aging_history",{
-                            "datetime":creation_date,
-                            "warehouse":item.warehouse,
-                            "warehouse_temperature":warehouse_temperature.temperature,
-                            "aging_rate":aging_rate,
-                            "base_expiry_date":base_expiry_date,
-                            "rt_expiry_date":expiry_date,
-                            "creation_document_type":self.doctype,
-                            "stock_txn_reference":self.name,
-                            "shelf_life_in_days":item_doc.shelf_life_in_days,
-                            "description":"Created from "+self.doctype+" ref No:"+self.name
-                        })
+                        container_doc.base_expiry_date = base_expiry_date
+                        container_doc.expiry_date = expiry_date
+                        container_doc.append(
+                            "aging_history",
+                            {
+                                "datetime": creation_date,
+                                "warehouse": item.warehouse,
+                                "warehouse_temperature": warehouse_temperature.temperature,
+                                "aging_rate": aging_rate,
+                                "base_expiry_date": base_expiry_date,
+                                "rt_expiry_date": expiry_date,
+                                "creation_document_type": self.doctype,
+                                "stock_txn_reference": self.name,
+                                "shelf_life_in_days": item_doc.shelf_life_in_days,
+                                "description": "Created from "
+                                + self.doctype
+                                + " ref No:"
+                                + self.name,
+                            },
+                        )
                     container_doc.save(ignore_permissions=True)
-                    frappe.db.commit()
-                bobbin_weight=[]
+                frappe.db.commit()
+                bobbin_weight = []
             except Exception as e:
                 frappe.db.rollback()
                 frappe.log_error("An error occurred: {}".format(str(e)))
-                frappe.throw("An error occurred,please contact the administrator.For more info check the Error Log")
+                frappe.throw(e)
+
+
 def calculate_base_and_room_erpiry_date(item_doc,w_temperature):
     if item_doc.dynamic_aging:
         creation_date = frappe.utils.now_datetime() or datetime.now()

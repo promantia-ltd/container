@@ -110,6 +110,8 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
                 'conversion_factor')
             secondary_available_qty = container_pending_qty/secondary_uom_conversion_value
             container_doc.db_set('secondary_available_qty', secondary_available_qty)
+            # container_doc.db_set('delivery_document_type', "Delivery Note")
+            # container_doc.db_set('delivery_document_no', delivery_note_docname)
             # add consumption details in stock details of Container
             update_stock_detail_table(container=container, consumed_qty=container_consumed_qty, delivery_note_docname=delivery_note_docname)
             # add a comment in container doc to show how much is consumed
@@ -209,3 +211,22 @@ def add_containers_before_save(doc,method):
         frappe.db.rollback()
         frappe.log_error("An error occurred: {}".format(str(e)))
         frappe.throw("Something went wrong : "+str(e))   
+        
+        
+def update_dn_details_container(self, method):
+    """
+    Update delivery document details for containers in the container list.
+
+    This method iterates over each item in the Delivery Note's item table.
+    If the 'container_list' field is populated, it splits the container list into individual entities
+    and updates the corresponding Entity records with the Delivery Note's type and number.
+
+    Args:
+        self: The Delivery Note document instance.
+        method: The hook method triggering this function.
+    """
+    for row in self.items:
+        if row.container_list:
+            container_list = row.container_list.split(",")
+            for container in container_list:
+                frappe.db.set_value('Container', container, {'delivery_document_type': 'Delivery Note', 'delivery_document_no': self.name})

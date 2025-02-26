@@ -2,6 +2,12 @@ import erpnext.controllers.status_updater as _standard_updator
 
 from container.api import StatusUpdaterCustom as _custom_updator
 
+from container import overrides as _custom_overrided_logic_override_file
+from erpnext.stock.serial_batch_bundle import SerialBatchCreation
+
+#For updating entities to the Serial and Batch Bundle entries
+SerialBatchCreation.set_serial_batch_entries = _custom_overrided_logic_override_file.set_serial_batch_entries
+
 app_name = "container"
 app_title = "Container"
 app_publisher = "Mohan"
@@ -137,9 +143,9 @@ doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_lis
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-# 	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+	"Serial and Batch Bundle":"container.container.doctype.serial_and_batch_bundle.serial_and_batch_bundle.CustomSerialandBatchBundle",
+}
 
 # Document Events
 # ---------------
@@ -159,6 +165,7 @@ doc_events = {
         ],
     },
     "Purchase Receipt": {
+        "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
         "on_submit": "container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
         "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
         # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
@@ -176,7 +183,10 @@ doc_events = {
         "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
         "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
         "validate": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save",
-        "before_submit": "container.container.doctype.delivery_note.delivery_note.validate_containers",
+        "before_submit": [
+            "container.container.doctype.delivery_note.delivery_note.validate_containers",
+            "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
+            ]
 
 
 
