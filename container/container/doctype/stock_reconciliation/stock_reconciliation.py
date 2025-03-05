@@ -122,6 +122,7 @@ def on_submit(doc, method):
             )
             frappe.db.commit()
 
+
     except Exception as e:
         frappe.db.rollback()
         frappe.log_error("An error occurred: {}".format(str(e)))
