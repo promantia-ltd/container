@@ -121,25 +121,6 @@ def on_submit(doc, method):
                 ),
             )
             frappe.db.commit()
-        else:
-            # If custom_container_reconciliation is not set, create Stock Ledger Entries
-            for sr_item in doc.items:
-                sle = frappe.get_doc({
-                    "doctype": "Stock Ledger Entry",
-                    "item_code": sr_item.item_code,
-                    "warehouse": sr_item.warehouse,
-                    "posting_date": doc.posting_date,
-                    "posting_time": doc.posting_time,
-                    "posting_datetime": frappe.utils.now_datetime(),  # Current datetime
-                    "voucher_type": doc.doctype,
-                    "voucher_no": doc.name,
-                    "voucher_detail_no": sr_item.name,
-                    "actual_qty": sr_item.qty,
-                    "valuation_rate": sr_item.valuation_rate,
-                    "company": doc.company,
-                })
-                sle.insert(ignore_permissions=True)
-            frappe.db.commit()
 
     except Exception as e:
         frappe.db.rollback()
