@@ -2,7 +2,9 @@ frappe.provide("container.container");
 
 frappe.ui.form.on('Purchase Receipt', {
 	on_submit: function(frm,cdt,cdn){
-		set_quantity_for_container_nos(frm.doc.items,frm);
+		if (frm.doc.is_return === 0){
+            set_quantity_for_container_nos(frm.doc.items, frm);
+            }
 	},
 	refresh: function(frm) {
         if (frm.doc.docstatus === 0) {
