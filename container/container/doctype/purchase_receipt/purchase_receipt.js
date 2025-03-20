@@ -2,14 +2,15 @@ frappe.provide("container.container");
 
 frappe.ui.form.on('Purchase Receipt', {
 	on_submit: function(frm,cdt,cdn){
-		set_quantity_for_container_nos(frm.doc.items,frm);
+		if (frm.doc.is_return === 0){
+            set_quantity_for_container_nos(frm.doc.items, frm);
+            }
 	},
 	refresh: function(frm) {
         if (frm.doc.docstatus === 0) {
             // Reset button_hide to 0 for amended documents
             frm.set_value('button_hide', 0);
         }
-
         if (frm.doc.button_hide != "1" && frm.doc.docstatus === 1) {
             frm.add_custom_button(__('Set Container Qty'), function() {
                 set_quantity_for_container_nos(frm.doc.items, frm);
