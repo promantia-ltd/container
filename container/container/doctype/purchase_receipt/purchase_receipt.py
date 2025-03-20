@@ -339,7 +339,7 @@ def get_uom_qty_and_expiry_date(container_no_list):
     
 
 @frappe.whitelist()
-def set_quantity_container_no(quantity, items, docstatus, docname):
+def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
     try:
         sp_quantity = json.loads(quantity)
         items = json.loads(items)
@@ -419,7 +419,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
 
             # Final check based on total stock_qty and document status
             total_stock_qty = item_total_stock_qty[item_code]
-            if docstatus == '1':
+            if docstatus == '1' and is_return == 0:
                 if flt(total_qty) > flt(total_stock_qty):
                     frappe.throw(_("Quantity exceeded. Expected Total Qty of the item {0} in warehouse {1} should not be more than {2}")
                                  .format(item_code, original_warehouse, total_stock_qty))
@@ -443,19 +443,30 @@ def set_quantity_container_no(quantity, items, docstatus, docname):
                     )
 
                     sp_doc = frappe.get_doc("Container", sp['container_no'])
-                    sp_doc.db_set('primary_available_qty', flt(sp['quantity']) * purchase_uom_conversion)
-                    sp_doc.db_set("secondary_available_qty", flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf)
+
+                    # Calculate the primary and secondary available quantities
+                    primary_qty = flt(sp['quantity']) * purchase_uom_conversion
+                    secondary_qty = flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf
+
+                    # Set container quantities
+                    sp_doc.db_set('primary_available_qty', primary_qty)
+                    sp_doc.db_set("secondary_available_qty", secondary_qty)
                     sp_doc.db_set('updated', sp['updated'])
 
-                    # Update custom_container_reference and status
+                    # Only activate containers with non-zero quantity
                     if docstatus == '1':
-                        sp_doc.db_set('status', 'Active')
+                        if primary_qty > 0:
+                            sp_doc.db_set('status', 'Active')
+                        else:
+                            sp_doc.db_set('status', 'Inactive')  # Keep inactive if qty is 0
+
                         sp_doc.db_set('custom_container_reference', sp['custom_container_reference'])
 
                     if 'expiry_date' in sp:
                         sp_doc.db_set('expiry_date', sp['expiry_date'])
 
                     frappe.db.commit()
+
 
         if docstatus == '1':
             frappe.db.set_value('Purchase Receipt', {'name': docname}, "button_hide", 1)

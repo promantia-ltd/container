@@ -294,6 +294,7 @@ function set_quantity_for_container_nos(items, frm) {
                 items: JSON.stringify(frm.doc.items),
                 docstatus: 1, // Save and submit
                 docname: frm.doc.name,
+                is_return: frm.doc.is_return
             },
             async: false,
             callback: function (r) {
