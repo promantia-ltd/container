@@ -2,6 +2,10 @@
 # For license information, please see license.txt
 
 import frappe
+from erpnext.stock.doctype.stock_reconciliation.stock_reconciliation import StockReconciliation
+from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
+from frappe.utils import add_to_date, cint, cstr, flt, get_link_to_form
+from frappe import _, bold, msgprint
 
 container_reconciliation_doc = "Container Reconciliation"
 
@@ -147,3 +151,63 @@ def on_submit(doc, method):
         frappe.throw(
             "An error occurred, please contact the administrator. For more info, check the Error Log"
         )
+
+class CustomStockReconciliation(StockReconciliation):
+    	def get_sle_for_serialized_items(self, row, sl_entries, item):
+            from erpnext.stock.stock_ledger import get_previous_sle
+
+            serial_nos = get_serial_nos(row.serial_no)
+
+            # To issue existing serial nos
+            if row.current_qty and (row.current_serial_no or row.batch_no):
+                args = self.get_sle_for_items(row)
+                args.update(
+                    {
+                        "actual_qty": -1 * row.current_qty,
+                        "serial_no": row.current_serial_no,
+                        "batch_no": row.batch_no,
+                        "valuation_rate": row.current_valuation_rate,
+                    }
+                )
+
+                if row.current_serial_no:
+                    args.update(
+                        {
+                            "qty_after_transaction": 0,
+                        }
+                    )
+
+                sl_entries.append(args)
+
+            for serial_no in serial_nos:
+                args = self.get_sle_for_items(row, [serial_no])
+
+                previous_sle = get_previous_sle(
+                    {
+                        "item_code": row.item_code,
+                        "posting_date": self.posting_date,
+                        "posting_time": self.posting_time,
+                        "serial_no": serial_no,
+                    }
+                )
+
+
+            if row.qty:
+                args = self.get_sle_for_items(row)
+
+                if item.has_serial_no and item.has_batch_no:
+                    args["qty_after_transaction"] = row.qty
+
+                args.update(
+                    {
+                        "actual_qty": row.qty,
+                        "incoming_rate": row.valuation_rate,
+                        "valuation_rate": row.valuation_rate,
+                    }
+                )
+
+                sl_entries.append(args)
+
+            if serial_nos == get_serial_nos(row.current_serial_no):
+                # update valuation rate
+                self.update_valuation_rate_for_serial_nos(row, serial_nos)
