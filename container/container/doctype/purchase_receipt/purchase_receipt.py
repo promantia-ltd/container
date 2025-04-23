@@ -183,7 +183,7 @@ def update_containers_on_full_return(self):
             # Fetch containers linked to the original Purchase Receipt Item
             containers_str = frappe.db.get_value(
                 "Purchase Receipt Item",
-                {"parent": self.return_against, "item_code": item.item_code},
+                {"parent": self.name, "item_code": item.item_code},
                 "containers"
             )
 
@@ -219,17 +219,23 @@ def update_containers_on_full_return(self):
 
                     container_doc = frappe.get_doc("Container", container_no)
 
-                    # Get the current available qty in the container
+                    # Skip containers that already have 0 quantity
+                    if container_doc.primary_available_qty <= 0:
+                        continue
+
                     container_qty = container_doc.primary_available_qty
 
-                    # Inactivate the container
-                    container_doc.db_set("primary_available_qty", 0)
+                    # Determine how much qty to reduce in this container
+                    qty_to_reduce = min(returned_qty - total_covered_qty, container_qty)
+
+                    new_qty = container_qty - qty_to_reduce
+                    container_doc.db_set("primary_available_qty", new_qty)
                     container_doc.db_set("secondary_available_qty", 0)
-                    container_doc.db_set("status", "Inactive")
 
-                    # Add the current container qty to the cumulative total
-                    total_covered_qty += container_qty
+                    if new_qty == 0:
+                        container_doc.db_set("status", "Inactive")
 
+                    total_covered_qty += qty_to_reduce
         # Commit the changes
         frappe.db.commit()
 
@@ -237,7 +243,7 @@ def update_containers_on_full_return(self):
         frappe.db.rollback()
         frappe.log_error(f"Error updating containers on return: {str(e)}")
         frappe.throw("Failed to update containers on Purchase Return. Check the error log.")
-
+        
 def calculate_base_and_room_erpiry_date(item_doc,w_temperature):
     if item_doc.dynamic_aging:
         creation_date = frappe.utils.now_datetime() or datetime.now()
