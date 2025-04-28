@@ -54,6 +54,47 @@ frappe.ui.form.on('Purchase Receipt Item', {
 		let d=locals[cdt][cdn]
 		frappe.model.set_value(cdt,cdn,"qty",d.quantity);
 	},
+    containers: function(frm, cdt, cdn) {
+        if (frm.doc.is_return == 1){
+            let row = locals[cdt][cdn];
+            if (row.containers) {
+                let container_list = row.containers
+                    .split('\n')
+                    .map(c => c.trim())
+                    .filter(Boolean);
+
+                if (container_list.length > 0) {
+                    frappe.call({
+                        method: "frappe.client.get_list",
+                        args: {
+                            doctype: "Container",
+                            filters: {
+                                name: ["in", container_list]
+                            },
+                            fields: ["name", "primary_available_qty"],
+                            limit_page_length: container_list.length
+                        },  
+                        callback: function(response) {
+                            let total_qty = 0;
+                            (response.message || []).forEach(container => {
+                                total_qty += flt(container.primary_available_qty);
+                            });
+
+                            if (total_qty > 0) {
+                                frappe.model.set_value(cdt, cdn, "qty", -total_qty);
+                            } else {
+                                frappe.model.set_value(cdt, cdn, "qty", 0);
+                            }
+                        }
+                    });
+                } else {
+                    frappe.model.set_value(cdt, cdn, "qty", 0);
+                }
+            } else {
+                frappe.model.set_value(cdt, cdn, "qty", 0);
+            }
+        }
+    },
 	custom_add_contaierbatch_no:function(frm,cdt,cdn){
 		// container_and_batch_selector(frm,cdt,cdn)
 	}
