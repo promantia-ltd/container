@@ -187,10 +187,10 @@ doc_events = {
             "container.container.doctype.delivery_note.delivery_note.validate_containers",
             "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
             ]
-
-
-
-    }
+    },
+    "Job Card": {
+        "after_insert": "container.container.doctype.job_card.job_card.after_insert"
+    },
 }
 
 # Scheduled Tasks
