@@ -752,6 +752,8 @@ def on_cancel(doc, method):
 
 						for fg_cont in fg_containers:
 							created_container_doc = get_doc(container_doctype, fg_cont.name)
+							created_container_doc.db_set("primary_available_qty", 0)
+							created_container_doc.db_set("secondary_available_qty", 0)
 							created_container_doc.db_set("status", "Inactive")
 							cont += fg_cont.name + "\n"
 							frappe.db.commit()
