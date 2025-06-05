@@ -425,7 +425,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
 
             # Final check based on total stock_qty and document status
             total_stock_qty = item_total_stock_qty[item_code]
-            if docstatus == '1' and is_return == 0:
+            if docstatus == '1' and int(is_return) == 0:
                 if flt(total_qty) > flt(total_stock_qty):
                     frappe.throw(_("Quantity exceeded. Expected Total Qty of the item {0} in warehouse {1} should not be more than {2}")
                                  .format(item_code, original_warehouse, total_stock_qty))
@@ -457,6 +457,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
                     # Set container quantities
                     sp_doc.db_set('primary_available_qty', primary_qty)
                     sp_doc.db_set("secondary_available_qty", secondary_qty)
+                    sp_doc.db_set("initial_qty", primary_qty)
                     sp_doc.db_set('updated', sp['updated'])
 
                     # Only activate containers with non-zero quantity
@@ -563,10 +564,18 @@ def save_container_reference_number(quantity, docstatus):
                 {"parent": sp['item_code'], "uom": sp['uom']},
                 "conversion_factor"
             )
+            
+            secondary_uom_cf = frappe.db.get_value(
+                        "UOM Conversion Detail",
+                        {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
+                        "conversion_factor"
+                    )
             if not purchase_uom_conversion:
                 frappe.throw(f"UOM conversion factor missing for item {sp['item_code']} and UOM {sp['uom']}")
 
             sp_doc.db_set('primary_available_qty', flt(sp['quantity']) * purchase_uom_conversion)
+            sp_doc.db_set('secondary_available_qty', flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf)
+            sp_doc.db_set('initial_qty', flt(sp['quantity']) * purchase_uom_conversion)
 
             # Ensure container status remains inactive for Save action
             if docstatus == '0':  # Save only
