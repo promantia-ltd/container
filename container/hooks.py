@@ -58,7 +58,9 @@ doctype_js = {
     "Warehouse": "container/doctype/warehouse/warehouse.js",
     "Pick List": "container/doctype/pick_list/pick_list.js",
 }
-doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_list.js"}
+doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_list.js",
+                   "Stock Reconciliation": "container/doctype/stock_reconciliation/stock_reconciliation_list.js"
+                   }
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 

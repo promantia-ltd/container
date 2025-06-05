@@ -8,6 +8,10 @@
 
 frappe.ui.form.on('Container Reconciliation', {
     refresh: function(frm) {
+		if(frm.doc.docstatus==1){
+			cur_frm.page.btn_secondary.hide()
+			}
+			
 		frm.page.menu.find('[data-label="Duplicate"]').parent().parent().remove();
 		$('*[data-fieldname="items"]').find('.grid-remove-rows').hide();
 		$('*[data-fieldname="new_container_nos"]').find('.grid-remove-rows').hide();
