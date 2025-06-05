@@ -339,8 +339,9 @@ function set_quantity_for_container_nos(items, frm) {
             },
             async: false,
             callback: function (r) {
-                if (r.message === 1) {
+                if (r.message === "1") {
                     frappe.msgprint("Containers updated and activated successfully!");
+                    $(frm.page.inner_toolbar).find('button:contains("Set Container Qty")').hide();
                 }
             },
         });
