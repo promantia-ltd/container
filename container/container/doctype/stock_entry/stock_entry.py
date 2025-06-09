@@ -581,6 +581,12 @@ def validate(doc,method):
 
 	except ContainersNotAssigned as e:
 		frappe.throw(str(e))
+  
+  
+	if doc.stock_entry_type == "Manufacture":
+		for item in doc.items:
+			if not item.is_finished_item:
+				item.t_warehouse = None
 	
 	
 
