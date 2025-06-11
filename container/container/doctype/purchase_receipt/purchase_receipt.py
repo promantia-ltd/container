@@ -58,7 +58,52 @@ def on_submit(self, method):
                 f"An error occurred while processing the submission. Created entities have been rolled back."
             )
         )
+        
+def update_container_details_from_pr(doc, method):
+    updated_containers_map = {}
 
+    for row in doc.custom_container_qty_details:
+        item_code = row.item_code
+
+        if item_code not in updated_containers_map:
+            # Get all containers for the item and PR
+            containers = frappe.get_all(
+                "Container",
+                filters={
+                    "purchase_document_no": doc.name,
+                    "item_code": item_code
+                },
+                fields=["name"],
+                order_by="creation asc"
+            )
+            updated_containers_map[item_code] = {
+                "all": [c.name for c in containers],
+                "used": set()
+            }
+
+        available_containers = updated_containers_map[item_code]["all"]
+        used_containers = updated_containers_map[item_code]["used"]
+
+        # Find next unused container
+        container_to_update = None
+        for cname in available_containers:
+            if cname not in used_containers:
+                container_to_update = cname
+                used_containers.add(cname)
+                break
+
+        if not container_to_update:
+            frappe.msgprint(f"No available container to update for item {item_code}")
+            continue
+
+        # Update the container with row data
+        container_doc = frappe.get_doc("Container", container_to_update)
+        container_doc.primary_available_qty = row.qty
+        container_doc.initial_qty = row.qty
+        container_doc.warehouse = row.warehouse
+        container_doc.custom_container_reference = row.container_ref
+        container_doc.status = "Active"
+        container_doc.save(ignore_permissions=True)
 
 def container_creation(self, method):
     if self.is_return == 0:
