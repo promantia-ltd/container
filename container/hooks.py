@@ -168,7 +168,8 @@ doc_events = {
     },
     "Purchase Receipt": {
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
-        "on_submit": "container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
+        "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
+                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_details_from_pr"],
         "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
         # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },

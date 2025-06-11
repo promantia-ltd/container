@@ -1,23 +1,29 @@
 frappe.provide("container.container");
 
 frappe.ui.form.on('Purchase Receipt', {
-	on_submit: function(frm,cdt,cdn){
-		if (frm.doc.is_return === 0){
-            set_quantity_for_container_nos(frm.doc.items, frm);
-            }
-	},
-	refresh: function(frm) {
-        if (frm.doc.docstatus === 0) {
-            // Reset button_hide to 0 for amended documents
-            frm.set_value('button_hide', 0);
+    refresh: function(frm) {
+        if (frm.is_new()){
+            frm.clear_table('custom_container_qty_details');
         }
-        if (frm.doc.button_hide != "1" && frm.doc.docstatus === 1) {
-            frm.add_custom_button(__('Set Container Qty'), function() {
-                set_quantity_for_container_nos(frm.doc.items, frm);
-            });
+        if (!frm.is_new() && !frm.doc.is_return) {
+            if (frm.doc.docstatus == 0) {
+                frm.add_custom_button('Set Containers Qty', () => {
+                    frm.__container_dialog_shown = true;
+                    show_container_dialog(frm);
+                });
+            } else {
+                frm.remove_custom_button('Set Containers Qty');
+            }
         }
     },
 	after_save:function(frm,cdt,cdn){
+        if (frm.is_new() || frm.doc.is_return) return;
+        if (!frm.__container_dialog_shown) {
+            frm.__container_dialog_shown = true;
+            show_container_dialog(frm);
+            throw "Opening container dialog...";
+        }
+
 		if(frm.doc.docstatus !=1){
 		set_bobbin_weight_for_container(frm.doc.items,frm)
 		}
@@ -463,3 +469,204 @@ function set_bobbin_weight_for_container(items,frm){
 		d.show();
 	}
 }
+
+function show_container_dialog(frm) {
+    let container_data = [];
+    let sl_no = 1;
+
+    // Store total accepted qty per item for validation (only containerized)
+    let item_qty_map = {};
+    frm.doc.items.forEach(item => {
+        if (item.is_containerized) {
+            item_qty_map[item.item_code] = flt(item.qty);
+        }
+    });
+
+    frm.doc.items.forEach(item => {
+        if (!item.is_containerized) return; // Skip non-containerized items
+
+        let no_of_containers = item.no_of_containers || 0;
+        if (no_of_containers <= 0) return;
+
+        let qty_per_container = flt(item.qty) / no_of_containers;
+        let uom = item.purchase_uom || item.stock_uom || 'Unit';
+
+        let existing_rows = (frm.doc.custom_container_qty_details || []).filter(cd => cd.item_code === item.item_code);
+
+        if (existing_rows.length === no_of_containers) {
+            existing_rows.forEach(row => {
+                container_data.push({
+                    sl_no: sl_no++,
+                    item_code: row.item_code,
+                    warehouse: row.warehouse,
+                    container_ref: row.container_ref,
+                    qty: row.qty,
+                    uom: row.uom || uom,
+                    expiry_date: row.expiry_date,
+                    updated: row.updated || 0
+                });
+            });
+        } else {
+            for (let i = 0; i < no_of_containers; i++) {
+                container_data.push({
+                    sl_no: sl_no++,
+                    item_code: item.item_code,
+                    warehouse: item.warehouse,
+                    container_ref: '',
+                    qty: qty_per_container,
+                    uom: uom,
+                    expiry_date: null,
+                    updated: 0
+                });
+            }
+        }
+    });
+
+    const fields = [
+        { label: "Sl.No", fieldname: "sl_no", fieldtype: "Int", read_only: 1, in_list_view: 1 },
+        { label: "Accepted Warehouse", fieldname: "warehouse", fieldtype: "Link", options: "Warehouse", read_only: 1, in_list_view: 1 },
+        { label: "Container Ref", fieldname: "container_ref", fieldtype: "Data", in_list_view: 1 },
+        { label: "Item", fieldname: "item_code", fieldtype: "Link", options: "Item", read_only: 1, in_list_view: 1 },
+        { label: "Qty", fieldname: "qty", fieldtype: "Float", in_list_view: 1, reqd: 1 },
+        { label: "UOM", fieldname: "uom", fieldtype: "Link", options: "UOM", in_list_view: 1, reqd: 1 },
+        { label: "Updated", fieldname: "updated", fieldtype: "Check", in_list_view: 1 },
+        { label: "Expiry Date", fieldname: "expiry_date", fieldtype: "Date", in_list_view: 1 }
+    ];
+
+    // Validation function for container quantities
+    function validate_container_qty(data) {
+        let item_total_qty = {};
+        data.container_details.forEach(row => {
+            if (!item_total_qty[row.item_code]) {
+                item_total_qty[row.item_code] = 0;
+            }
+            item_total_qty[row.item_code] += flt(row.qty);
+        });
+
+        for (let item_code in item_total_qty) {
+            let total_container_qty = flt(item_total_qty[item_code]);
+            let accepted_qty = flt(item_qty_map[item_code]);
+
+            if (total_container_qty > accepted_qty) {
+                frappe.msgprint({
+                    message: __("Quantity exceeded for item {0}. Total quantity in containers ({1}) exceeds accepted quantity ({2}).",
+                        [item_code, total_container_qty, accepted_qty]),
+                    title: __("Validation Error"),
+                    indicator: "red"
+                });
+                return false;
+            }
+            if (total_container_qty < accepted_qty) {
+                frappe.msgprint({
+                    message: __("Quantity insufficient for item {0}. Total quantity in containers ({1}) is less than accepted quantity ({2}).",
+                        [item_code, total_container_qty, accepted_qty]),
+                    title: __("Validation Error"),
+                    indicator: "red"
+                });
+                return false;
+            }
+        }
+        return true;
+    }
+
+    let dialog = new frappe.ui.Dialog({
+        size: "large",
+        title: "Set Container Quantities",
+        fields: [
+            {
+                label: "Container Details",
+                fieldtype: "Table",
+                fieldname: "container_details",
+                fields: fields,
+                cannot_add_rows: true,
+                cannot_delete_rows: true,
+                in_place_edit: true,
+                data: container_data
+            }
+        ],
+        primary_action_label: "Save",
+        primary_action() {
+            let data = dialog.get_values();
+            if (!data || !data.container_details) {
+                frappe.msgprint("No data found in dialog.");
+                return;
+            }
+
+            if (!validate_container_qty(data)) {
+                return;
+            }
+
+            frm.clear_table('custom_container_qty_details');
+            let slno_counter = 1;
+
+            data.container_details.forEach(row => {
+                let child = frm.add_child('custom_container_qty_details');
+                child.slno = slno_counter++;
+                child.item_code = row.item_code;
+                child.warehouse = row.warehouse;
+                child.container_ref = row.container_ref;
+                child.qty = row.qty;
+                child.uom = row.uom;
+                child.expiry_date = row.expiry_date;
+                child.updated = row.updated;
+            });
+
+            frm.refresh_field('custom_container_qty_details');
+
+            frm.save()
+                .then(() => {
+                    frappe.msgprint("Container details saved successfully.");
+                    dialog.hide();
+                })
+                .catch(err => {
+                    console.error("Error saving form:", err);
+                    frappe.msgprint(`Error saving container details: ${err.message}`);
+                });
+        },
+        secondary_action_label: "Save and Submit",
+        secondary_action() {
+            let data = dialog.get_values();
+            if (!data || !data.container_details) {
+                frappe.msgprint("No data found in dialog.");
+                return;
+            }
+
+            if (!validate_container_qty(data)) {
+                return;
+            }
+
+            frm.clear_table('custom_container_qty_details');
+            let slno_counter = 1;
+
+            data.container_details.forEach(row => {
+                let child = frm.add_child('custom_container_qty_details');
+                child.slno = slno_counter++;
+                child.item_code = row.item_code;
+                child.warehouse = row.warehouse;
+                child.container_ref = row.container_ref;
+                child.qty = row.qty;
+                child.uom = row.uom;
+                child.expiry_date = row.expiry_date;
+                child.updated = row.updated;
+            });
+
+            frm.refresh_field('custom_container_qty_details');
+
+            frm.save()
+                .then(() => {
+                    frappe.msgprint("Container details saved and document submitted successfully.");
+                    dialog.hide();
+                    setTimeout(() => {
+                        frm.remove_custom_button('Set Containers Qty');
+                    }, 300);
+                })
+                .catch(err => {
+                    console.error("Error saving and submitting form:", err);
+                    frappe.msgprint(`Error: ${err.message}`);
+                });
+        }
+    });
+
+    dialog.show();
+}
+

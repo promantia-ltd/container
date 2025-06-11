@@ -1,0 +1,90 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-06-10 13:44:45.311004",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "slno",
+  "item_code",
+  "warehouse",
+  "uom",
+  "column_break_gvpz",
+  "container_ref",
+  "qty",
+  "updated",
+  "expiry_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "slno",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Sl.No"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item Code",
+   "options": "Item"
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "uom",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "UOM",
+   "options": "UOM"
+  },
+  {
+   "fieldname": "column_break_gvpz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "container_ref",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Container Ref"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Qty"
+  },
+  {
+   "default": "0",
+   "fieldname": "updated",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Updated"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Date",
+   "label": "Expiry Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-06-10 14:03:19.923721",
+ "modified_by": "Administrator",
+ "module": "Container",
+ "name": "Container Qty Details",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
