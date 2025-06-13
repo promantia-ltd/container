@@ -14,7 +14,8 @@
   "column_break_m4rsl",
   "warehouse",
   "is_reserved",
-  "consumed_qty"
+  "consumed_qty",
+  "sales_return_qty"
  ],
  "fields": [
   {
@@ -68,17 +69,25 @@
    "fieldtype": "Link",
    "label": "Delivery Note",
    "options": "Delivery Note"
+  },
+  {
+   "fieldname": "sales_return_qty",
+   "fieldtype": "Float",
+   "label": "Sales Return Qty",
+   "read_only": 1
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-04-24 18:25:38.600520",
+ "modified": "2025-06-13 16:44:12.310099",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Stock Details",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []

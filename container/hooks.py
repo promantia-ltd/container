@@ -183,7 +183,8 @@ doc_events = {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
     },
     "Delivery Note": {
-        "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
+        "on_submit": ["container.container.doctype.delivery_note.delivery_note.container_processing",
+                      "container.container.doctype.delivery_note.delivery_note.update_containers_on_return"],
         "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
         "validate": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save",
         "before_submit": [
