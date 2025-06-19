@@ -337,7 +337,9 @@ def on_cancel(self,method=None):
                 container_no_list.extend(item_container.split("\n"))
      for container in container_no_list:
         sp_doc=frappe.get_doc(container_no_doc,container)
-        sp_doc.db_set("status","Inactive")
+        sp_doc.db_set("primary_available_qty", 0)
+        sp_doc.db_set("secondary_available_qty", 0)
+        sp_doc.db_set("status","Cancelled")
         frappe.db.commit()
         
 def get_auto_container_nos(container_no_series, qty):
