@@ -27,6 +27,16 @@ _standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_cr
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Container"]]},
     {"dt": "Property Setter", "filters": [["module", "=", "Container"]]},
+    {
+        "dt": "Client Script",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Remove Container Serial no on Duplicaition"],
+            ]
+        ],
+    },
 ]
 
 # include js, css files in header of desk.html
