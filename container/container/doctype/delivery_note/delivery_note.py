@@ -1,5 +1,6 @@
 import frappe
 import json
+from frappe.utils import flt
 
 
 @frappe.whitelist()
@@ -31,7 +32,6 @@ def container_processing(doc, method):
                               required_qty=item.stock_qty,
                               delivery_note_docname=doc.name)
     
-
 def validate_containers(doc,method):
     for item in doc.items:
         if item.is_containerized and not item.container_list:
@@ -195,17 +195,25 @@ def add_containers_before_save(doc,method):
                         """.format(item.item_code, warehouse, ignore_scrap_qty), as_dict=True)
                 container_list=""
                 if len(query)>0:
-                    required_qty=item.stock_qty
+                    original_required_qty = flt(item.stock_qty, 6)
+                    total_consumed = 0.0
+
                     for container in query:
-                        if required_qty>0:
-                            required_qty=required_qty-container.primary_available_qty
-                            container_list=container_list+container.name+","
+                        if total_consumed < original_required_qty:
+                            container_qty = flt(container.primary_available_qty, 6)
+                            total_consumed = flt(total_consumed + container_qty, 6)
+                            container_list += container.name + ","
                         else:
                             break
-                    if required_qty>0:
-                        frappe.throw('Stock is Not available for the Item '+item.item_code+' at the warehouse '+warehouse)
+
+                    # If we over-consume slightly, allow tiny margin then fix it
+                    if abs(total_consumed - original_required_qty) <= 0.0001:
+                        total_consumed = original_required_qty
+
+                    if total_consumed < original_required_qty:
+                        frappe.throw(f'Stock is not available for the Item {item.item_code} at the warehouse {warehouse}')
                     else:
-                        item.container_list=container_list
+                        item.container_list = container_list
         
     except Exception as e:
         frappe.db.rollback()
