@@ -1,5 +1,6 @@
 import frappe
 import json
+from frappe.utils import flt
 
 
 @frappe.whitelist()
@@ -31,26 +32,32 @@ def container_processing(doc, method):
                               required_qty=item.stock_qty,
                               delivery_note_docname=doc.name)
     
-
 def validate_containers(doc,method):
     for item in doc.items:
         if item.is_containerized and not item.container_list:
             frappe.throw('Container List is mandatory for Item '+item.item_code)
 
 def validate_container_qty(container_no_list, item_code, required_qty, warehouse):
-    total_qty = 0
+    total_qty = 0.0
+    required_qty = flt(required_qty, 6)
+
     for container in container_no_list:
         if container:
             # if extra containers are mentioned that are not required ask the user to remove them
             if total_qty >= required_qty:
-                frappe.throw('The container ' + container + ' is not required as qty \
+                frappe.throw(f'The container {container} is not required as qty \
                              required is already considered using the other containers mentioned')
-            # get the total quantity available in the containers
-            total_qty = total_qty + validate_container(container, item_code, warehouse)
-    # if total qty in the mentioned containers does not dsatisfy the required qty
+                
+            container_qty = flt(validate_container(container, item_code, warehouse), 6)
+            total_qty = flt(total_qty + container_qty, 6)
+
+    # Force rounding margin
+    if abs(total_qty - required_qty) <= 0.0001:
+        total_qty = required_qty
+
     if total_qty < required_qty:
-        frappe.throw('The containers mentioned do not have the total quantity required for the item ' + item_code +
-                     '. Add some more containers with the availale quantity')
+        frappe.throw(f'The containers mentioned do not have the total quantity required for the item {item_code}. \
+                      Add some more containers with the available quantity.')
 
 
 def validate_container(container, item_code, warehouse):
@@ -195,17 +202,25 @@ def add_containers_before_save(doc,method):
                         """.format(item.item_code, warehouse, ignore_scrap_qty), as_dict=True)
                 container_list=""
                 if len(query)>0:
-                    required_qty=item.stock_qty
+                    original_required_qty = flt(item.stock_qty, 6)
+                    total_consumed = 0.0
+
                     for container in query:
-                        if required_qty>0:
-                            required_qty=required_qty-container.primary_available_qty
-                            container_list=container_list+container.name+","
+                        if total_consumed < original_required_qty:
+                            container_qty = flt(container.primary_available_qty, 6)
+                            total_consumed = flt(total_consumed + container_qty, 6)
+                            container_list += container.name + ","
                         else:
                             break
-                    if required_qty>0:
-                        frappe.throw('Stock is Not available for the Item '+item.item_code+' at the warehouse '+warehouse)
+
+                    # If we over-consume slightly, allow tiny margin then fix it
+                    if abs(total_consumed - original_required_qty) <= 0.0001:
+                        total_consumed = original_required_qty
+
+                    if total_consumed < original_required_qty:
+                        frappe.throw(f'Stock is not available for the Item {item.item_code} at the warehouse {warehouse}')
                     else:
-                        item.container_list=container_list
+                        item.container_list = container_list
         
     except Exception as e:
         frappe.db.rollback()
