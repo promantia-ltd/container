@@ -38,19 +38,26 @@ def validate_containers(doc,method):
             frappe.throw('Container List is mandatory for Item '+item.item_code)
 
 def validate_container_qty(container_no_list, item_code, required_qty, warehouse):
-    total_qty = 0
+    total_qty = 0.0
+    required_qty = flt(required_qty, 6)
+
     for container in container_no_list:
         if container:
             # if extra containers are mentioned that are not required ask the user to remove them
             if total_qty >= required_qty:
-                frappe.throw('The container ' + container + ' is not required as qty \
+                frappe.throw(f'The container {container} is not required as qty \
                              required is already considered using the other containers mentioned')
-            # get the total quantity available in the containers
-            total_qty = total_qty + validate_container(container, item_code, warehouse)
-    # if total qty in the mentioned containers does not dsatisfy the required qty
+                
+            container_qty = flt(validate_container(container, item_code, warehouse), 6)
+            total_qty = flt(total_qty + container_qty, 6)
+
+    # Force rounding margin
+    if abs(total_qty - required_qty) <= 0.0001:
+        total_qty = required_qty
+
     if total_qty < required_qty:
-        frappe.throw('The containers mentioned do not have the total quantity required for the item ' + item_code +
-                     '. Add some more containers with the availale quantity')
+        frappe.throw(f'The containers mentioned do not have the total quantity required for the item {item_code}. \
+                      Add some more containers with the available quantity.')
 
 
 def validate_container(container, item_code, warehouse):
