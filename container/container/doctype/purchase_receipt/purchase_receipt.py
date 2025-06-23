@@ -104,6 +104,37 @@ def update_container_details_from_pr(doc, method):
         container_doc.custom_container_reference = row.container_ref
         container_doc.status = "Active"
         container_doc.save(ignore_permissions=True)
+        
+def update_container_precision(doc, method):
+    for item in doc.items:
+        if not item.is_containerized:
+            continue
+
+        # Split stored container IDs (newline or comma separated)
+        container_ids = (item.containers or "").splitlines()
+        container_ids = [c.strip() for c in container_ids if c.strip()]
+
+        if not container_ids:
+            continue
+
+        # Sum up primary_available_qty for these containers
+        total_primary_qty = 0
+        containers = []
+        for container_id in container_ids:
+            container = frappe.get_doc("Container", container_id)
+            total_primary_qty += container.primary_available_qty
+            containers.append(container)
+
+        # Calculate difference
+        diff = (item.qty - total_primary_qty)
+
+        if abs(diff) > 0:
+            # Adjust last container
+            last_container = containers[-1]
+            last_container.primary_available_qty += diff
+            if last_container.primary_available_qty < 0:
+                last_container.primary_available_qty = 0
+            last_container.save()
 
 def container_creation(self, method):
     if self.is_return == 0:
