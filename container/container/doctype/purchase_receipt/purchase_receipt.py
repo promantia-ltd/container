@@ -110,7 +110,6 @@ def update_container_precision(doc, method):
         if not item.is_containerized:
             continue
 
-        # Split stored container IDs (newline or comma separated)
         container_ids = (item.containers or "").splitlines()
         container_ids = [c.strip() for c in container_ids if c.strip()]
 
@@ -128,8 +127,8 @@ def update_container_precision(doc, method):
         # Calculate difference
         diff = (item.qty - total_primary_qty)
 
+        # Adjust last container
         if abs(diff) > 0:
-            # Adjust last container
             last_container = containers[-1]
             last_container.primary_available_qty += diff
             if last_container.primary_available_qty < 0:
