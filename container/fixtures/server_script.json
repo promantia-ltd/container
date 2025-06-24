@@ -1,0 +1,21 @@
+[
+ {
+  "allow_guest": 0,
+  "api_method": null,
+  "cron_format": null,
+  "disabled": 1,
+  "docstatus": 0,
+  "doctype": "Server Script",
+  "doctype_event": "After Save",
+  "enable_rate_limit": 0,
+  "event_frequency": "All",
+  "modified": "2025-06-24 16:35:06.044402",
+  "module": "Container",
+  "name": "Check DN",
+  "rate_limit_count": 5,
+  "rate_limit_seconds": 86400,
+  "reference_doctype": "Item",
+  "script": "records=frappe.db.sql(\"\"\"\n      SELECT \n    b.item_code AS item_code, \n    b.warehouse AS warehouse,\n    \n    b.actual_qty AS bin_qty,\n    GROUP_CONCAT(DISTINCT c.name) AS containers,\n    SUM(c.primary_available_qty) + SUM(IFNULL(sd.reserved_qty, 0)) AS total_container_qty_avail,\n    (b.actual_qty-(SUM(c.primary_available_qty) + SUM(IFNULL(sd.reserved_qty, 0)))) AS diff,\n    SUM(c.primary_available_qty) AS primary_available_qty,\n    SUM(IFNULL(sd.reserved_qty, 0)) AS container_reserved_qty, \n    MAX(c.modified) AS last_container_update_date\nFROM \n    `tabBin` b\nJOIN \n    `tabContainer` c \n    ON c.item_code = b.item_code \n    AND c.warehouse = b.warehouse\n    AND c.status != \"Inactive\"\nLEFT JOIN (\n    SELECT parent, SUM(reserved_qty) AS reserved_qty\n    FROM `tabStock Details`\n    GROUP BY parent\n) sd ON sd.parent = c.name\n\nGROUP BY \n    b.item_code, b.warehouse, b.actual_qty\nHAVING \n    bin_qty != total_container_qty_avail\n    AND (diff) BETWEEN -1 AND 1;\n        \"\"\")\n\nmessage=\"\"\npcount=0\nlcount=0\nfor record in records:\n    if record[5]<0:\n        fg_containers = frappe.db.get_list(\n        \"Container\",\n        filters={\n            \"item_code\": record[0],\n            \"warehouse\": record[1],\n            \"status\": \"Active\",\n            \"primary_available_qty\": (\">\", record[5])\n        },\n        fields=[\"name\",\"primary_available_qty\"],\n        limit=1\n        )\n    elif record[5]>0:\n        fg_containers = frappe.db.get_list(\n        \"Container\",\n        filters={\n            \"item_code\": record[0],\n            \"warehouse\": record[1],\n            \"status\": \"Active\",\n            \"primary_available_qty\": (\">=\", 0)\n        },\n        fields=[\"name\",\"primary_available_qty\"],\n        limit=1\n        )\n    if len(fg_containers)>0:\n        qty=float(fg_containers[0].primary_available_qty)+(record[5])\n        message=message+record[0]+\"cont:\"+fg_containers[0].name+\" diff: \"+str(record[5])+\" qty total: \"+str(qty)+\"\\n\"\n        pcount=pcount+1\n        container_doc=frappe.get_doc(\"Container\",fg_containers[0].name)\n        container_doc.primary_available_qty = qty\n        container_doc.save()\n\n            # ✅ Add comment\n        container_doc.add_comment(\"Comment\", \"Qty :\"+str((record[5]))+\" is added to fix the precision issue in this container\")\n\n    else:\n        lcount=lcount+1\n        frappe.log_error(\"No existing containers for : Item : \"+record[0]+\" warehouse : \"+record[1])\n\nfrappe.msgprint('Updated'+ str(message)+\" Success: \"+str(pcount)+\" Loss : \"+str(lcount))",
+  "script_type": "DocType Event"
+ }
+]
