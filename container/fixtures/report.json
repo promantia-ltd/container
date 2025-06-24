@@ -1,0 +1,58 @@
+[
+ {
+  "add_total_row": 0,
+  "add_translate_data": 0,
+  "columns": [],
+  "disabled": 0,
+  "docstatus": 0,
+  "doctype": "Report",
+  "filters": [],
+  "is_standard": "No",
+  "javascript": null,
+  "json": "{}",
+  "letter_head": "HOTSET DEFAULT LETTER HEAD",
+  "modified": "2025-06-24 16:18:07.658110",
+  "module": "Container",
+  "name": "Container VS Bin Stock Balance",
+  "prepared_report": 0,
+  "query": "SELECT \n    b.item_code AS item_code, \n    b.warehouse AS warehouse,\n    b.actual_qty AS bin_qty,\n    GROUP_CONCAT(DISTINCT c.name) AS containers,\n    ((SUM(c.primary_available_qty) + SUM(IFNULL(sd.reserved_qty, 0)))) AS total_container_qty_avail,\n    SUM(c.primary_available_qty) AS primary_available_qty,\n    (((SUM(c.primary_available_qty) + SUM(IFNULL(sd.reserved_qty, 0)))) - b.actual_qty) as qty_diff,\n    SUM(IFNULL(sd.reserved_qty, 0)) AS container_reserved_qty, \n    MAX(c.modified) AS last_container_update_date\nFROM \n    `tabBin` b\nJOIN \n    `tabContainer` c \n    ON c.item_code = b.item_code \n    AND c.warehouse = b.warehouse\n    AND c.status != \"Inactive\"\nLEFT JOIN (\n    SELECT parent, SUM(reserved_qty) AS reserved_qty\n    FROM `tabStock Details`\n    GROUP BY parent\n) sd ON sd.parent = c.name\nGROUP BY \n    b.item_code, b.warehouse, b.actual_qty\nHAVING \n    bin_qty != total_container_qty_avail\n    and (total_container_qty_avail-bin_qty) between -1 and 1;\n",
+  "ref_doctype": "Container",
+  "reference_report": null,
+  "report_name": "Container VS Bin Stock Balance",
+  "report_script": null,
+  "report_type": "Query Report",
+  "roles": [
+   {
+    "parent": "Container VS Bin Stock Balance",
+    "parentfield": "roles",
+    "parenttype": "Report",
+    "role": "Item Manager"
+   },
+   {
+    "parent": "Container VS Bin Stock Balance",
+    "parentfield": "roles",
+    "parenttype": "Report",
+    "role": "Stock Manager"
+   },
+   {
+    "parent": "Container VS Bin Stock Balance",
+    "parentfield": "roles",
+    "parenttype": "Report",
+    "role": "Stock User"
+   },
+   {
+    "parent": "Container VS Bin Stock Balance",
+    "parentfield": "roles",
+    "parenttype": "Report",
+    "role": "Manufacturing User"
+   },
+   {
+    "parent": "Container VS Bin Stock Balance",
+    "parentfield": "roles",
+    "parenttype": "Report",
+    "role": "Sales Support"
+   }
+  ],
+  "timeout": 0
+ }
+]

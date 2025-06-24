@@ -37,6 +37,26 @@ fixtures = [
             ]
         ],
     },
+    {
+        "dt": "Server Script",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Check DN"],
+            ]
+        ],
+    },
+    {
+        "dt": "Report",
+        "filters": [
+            [
+                "name", "in", [
+                    "Container VS Bin Stock Balance"
+                ]
+            ]
+        ]
+    },
 ]
 
 # include js, css files in header of desk.html
