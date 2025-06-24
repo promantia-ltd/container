@@ -118,22 +118,22 @@ def update_container_precision(doc, method):
 
         # Sum up primary_available_qty for these containers
         total_primary_qty = 0
-        containers = []
         for container_id in container_ids:
-            container = frappe.get_doc("Container", container_id)
-            total_primary_qty += container.primary_available_qty
-            containers.append(container)
+            primary_qty = frappe.db.get_value("Container", container_id, "primary_available_qty") or 0
+            total_primary_qty += primary_qty
 
         # Calculate difference
-        diff = (item.qty - total_primary_qty)
+        diff = item.qty - total_primary_qty
 
-        # Adjust last container
-        if abs(diff) > 0:
-            last_container = containers[-1]
+        # Adjust last container if needed
+        if abs(diff) > 0 and container_ids:
+            last_container_id = container_ids[-1]
+            last_container = frappe.get_doc("Container", last_container_id)
             last_container.primary_available_qty += diff
             if last_container.primary_available_qty < 0:
                 last_container.primary_available_qty = 0
             last_container.save()
+
 
 def container_creation(self, method):
     if self.is_return == 0:
