@@ -574,7 +574,7 @@
    "fieldtype": "Select",
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nActive\nInactive\nDelivered\nExpired\nSlitted\nUsed",
+   "options": "\nActive\nInactive\nDelivered\nExpired\nSlitted\nUsed\nPartially Delivered",
    "read_only": 1
   },
   {
@@ -665,7 +665,7 @@
  "grid_page_length": 50,
  "icon": "fa fa-barcode",
  "links": [],
- "modified": "2025-06-19 07:39:47.342184",
+ "modified": "2025-07-01 16:22:25.359165",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container",
