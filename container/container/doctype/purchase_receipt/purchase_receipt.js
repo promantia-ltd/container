@@ -623,8 +623,7 @@ function show_container_dialog(frm) {
             child.slno = idx + 1;
         });
 
-        frm.set_value("custom_container_set_qty", 1);  // ✅ set flag
-        console.log("Value got set....")
+        frm.set_value("custom_container_set_qty", 1);
 
         frm.refresh_field('custom_container_qty_details');
         frm.save().then(() => {
