@@ -82,6 +82,53 @@ def update_containers_on_return(doc, method):
             if updated:
                 container.save(ignore_permissions=True)
 
+def revert_containers_on_return_cancel(doc, method):
+    if not doc.is_return:
+        return
+
+    for item in doc.items:
+        return_qty = abs(item.qty)
+        container_ids = (item.container_list or "").split(",")
+        container_ids = [c.strip() for c in container_ids if c.strip()]
+
+        for container_id in container_ids:
+            if return_qty <= 0:
+                break
+
+            container = frappe.get_doc("Container", container_id)
+            updated = False
+
+            for sd in container.stock_details:
+                if sd.delivery_note == doc.return_against and (sd.sales_return_qty or 0) > 0:
+                    if return_qty <= 0:
+                        break
+
+                    if sd.sales_return_qty >= return_qty:
+                        sd.sales_return_qty -= return_qty
+                        sd.consumed_qty += return_qty
+
+                        container.primary_available_qty -= return_qty
+                        container.secondary_available_qty -= return_qty
+
+                        return_qty = 0
+                        updated = True
+                        break
+                    else:
+                        reverted_now = sd.sales_return_qty
+
+                        return_qty -= reverted_now
+                        sd.consumed_qty += reverted_now
+                        sd.sales_return_qty = 0
+
+                        container.primary_available_qty -= reverted_now
+                        container.secondary_available_qty -= reverted_now
+
+                        updated = True
+
+            if updated:
+                container.save(ignore_permissions=True)
+
+
 def validate_containers(doc,method):
     if not doc.is_return:
         for item in doc.items:
