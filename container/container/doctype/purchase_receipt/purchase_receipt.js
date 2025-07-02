@@ -3,6 +3,7 @@ frappe.provide("container.container");
 frappe.ui.form.on('Purchase Receipt', {
     refresh: function(frm) {
         if (frm.is_new()){
+            frm.set_value("custom_container_set_qty", 0)
             frm.clear_table('custom_container_qty_details');
         }
         if (!frm.is_new() && !frm.doc.is_return) {
@@ -14,6 +15,13 @@ frappe.ui.form.on('Purchase Receipt', {
             } else {
                 frm.remove_custom_button('Set Containers Qty');
             }
+        }
+    },
+    before_submit: function(frm) {
+        const has_containerized_items = frm.doc.items.some(item => item.is_containerized);
+
+        if (has_containerized_items && !frm.doc.custom_container_set_qty) {
+            frappe.throw("Cannot Submit until containerized item quantities are Saved and Submitted.");
         }
     },
 	after_save:function(frm,cdt,cdn){
@@ -556,6 +564,13 @@ function show_container_dialog(frm) {
         return true;
     }
 
+    if (container_data.length === 0) {
+        frm.clear_table('custom_container_qty_details');
+        frm.set_value("custom_container_set_qty", 1);  // mark as handled
+        frm.refresh_field('custom_container_qty_details');
+        frm.save();
+        return;  // exit the function early, no dialog shown
+    }
     // Dialog
     let dialog = new frappe.ui.Dialog({
         size: "large",
@@ -597,26 +612,32 @@ function show_container_dialog(frm) {
         },
         secondary_action_label: "Save and Submit",
         secondary_action() {
-            let data = dialog.get_values();
-            if (!data) return;
-            if (!validate(data)) return;
+        let data = dialog.get_values();
+        if (!data) return;
+        if (!validate(data)) return;
 
-            frm.clear_table('custom_container_qty_details');
-            data.container_details.forEach((row, idx) => {
-                let child = frm.add_child('custom_container_qty_details');
-                Object.assign(child, row);
-                child.slno = idx + 1;
-            });
-            frm.refresh_field('custom_container_qty_details');
-            frm.save().then(() => {
-                frappe.msgprint("Saved successfully");
-                dialog.hide();
-                setTimeout(() => {
-                    frm.remove_custom_button('Set Containers Qty');
-                    frm.submit();
-                }, 500);
-            });
-        }
+        frm.clear_table('custom_container_qty_details');
+        data.container_details.forEach((row, idx) => {
+            let child = frm.add_child('custom_container_qty_details');
+            Object.assign(child, row);
+            child.slno = idx + 1;
+        });
+
+        frm.set_value("custom_container_set_qty", 1);  // ✅ set flag
+        console.log("Value got set....")
+
+        frm.refresh_field('custom_container_qty_details');
+        frm.save().then(() => {
+            frappe.msgprint("Saved successfully");
+            dialog.hide();
+
+            // ✅ optionally auto-submit
+            setTimeout(() => {
+                frm.remove_custom_button('Set Containers Qty');
+                frm.submit();
+            }, 500);
+        });
+    }
     });
 
     function update_total() {
