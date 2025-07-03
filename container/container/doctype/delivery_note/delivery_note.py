@@ -85,7 +85,7 @@ def update_containers_on_return(doc, method):
 def revert_containers_on_return_cancel(doc, method):
     if not doc.is_return:
         return
-
+      
     for item in doc.items:
         return_qty = abs(item.qty)
         container_ids = (item.container_list or "").split(",")
