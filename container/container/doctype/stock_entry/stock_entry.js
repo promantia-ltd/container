@@ -1,5 +1,8 @@
 frappe.ui.form.on('Stock Entry', {
     onload:function(frm){
+		if (frm.is_new() && frm.doc.amended_from){
+			frm.clear_table('reserved_items');
+		}
         let finished_item=""
 		if(frm.doc.__islocal==1){
 		frappe.db.get_value("Work Order",frm.doc.work_order,["source_warehouse","wip_warehouse"],(w)=>{
