@@ -3,7 +3,7 @@ frappe.listview_settings['Container'] = {
 	get_indicator: (doc) => {
 		if (doc.delivery_document_type && doc.primary_available_qty <=0) {
 			return [__("Delivered"), "green", "delivery_document_type,is,set"];
-		}else if (doc.delivery_document_type && (doc.primary_available_qty > 0 || doc.primary_available_qty < doc.initial_qty)){
+		}else if (doc.delivery_document_type && (doc.primary_available_qty > 0 || doc.primary_available_qty < doc.initial_qty) && doc.status != "Active") {
 			return [__("Partially Delivered"), "orange", "delivery_document_type,is,set"];
 		}else if (doc.expiry_date && frappe.datetime.get_diff(doc.expiry_date, frappe.datetime.nowdate()) <= 0) {
 			return [__("Expired"), "red", "expiry_date,not in,|expiry_date,<=,Today|delivery_document_type,is,not set"];
