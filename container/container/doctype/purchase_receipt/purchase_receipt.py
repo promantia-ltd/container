@@ -100,6 +100,7 @@ def update_container_details_from_pr(doc, method):
         container_doc = frappe.get_doc("Container", container_to_update)
         container_doc.primary_available_qty = row.qty
         container_doc.initial_qty = row.qty
+        container_doc.actual_container_qty = row.qty
         container_doc.warehouse = row.warehouse
         container_doc.custom_container_reference = row.container_ref
         container_doc.status = "Active"

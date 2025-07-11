@@ -500,9 +500,13 @@ def set_containers_status(doc, method):
 														if reserved_total < 0:
 															reserved_total = 0
 														required_qty=required_qty-qty_used
+														actual_container_qty = container_doc.actual_container_qty
 														consumed_qty = (stock_detail_doc.consumed_qty or 0) + flt(qty_used, precision)
 														stock_detail_doc.db_set('consumed_qty', consumed_qty)
 														stock_detail_doc.db_set('reserved_qty',reserved_total)
+														actual_container_qty = container_doc.actual_container_qty - consumed_qty
+														container_doc.db_set("actual_container_qty",actual_container_qty)
+														container_doc.db_set("consumption_status","Partially Consumed")
 														container_doc.add_comment('Comment','Used qty: '+str(flt(flt(qty_used), precision))+' for transaction with Stock Entry: '+doc.name)
 						
 												else:
@@ -516,6 +520,21 @@ def set_containers_status(doc, method):
 												# container_doc.save(ignore_permissions=True)
 												frappe.db.commit()
 												a=10
+												# After all updates, check if any container's total consumed_qty == initial_qty
+												for container_name in container_no_list:
+													if not container_name:
+														continue
+													container_doc = frappe.get_doc(container_doctype, container_name)
+
+													# Sum of consumed_qty in stock details for this container and this work order
+													total_consumed = frappe.db.sql("""
+														SELECT SUM(consumed_qty) FROM `tabStock Details`
+														WHERE parent = %s
+													""", (container_doc.name))[0][0] or 0
+
+													# Compare with initial_qty
+													if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision):
+														container_doc.db_set("consumption_status", "Consumed")
 										
 										except Exception as e:
 											frappe.db.rollback()
@@ -641,6 +660,8 @@ def on_cancel(doc, method):
 
 										primary_available_qty = container_doc.primary_available_qty + flt(stock_detail_doc.reserved_qty, precision)
 										container_doc.db_set('primary_available_qty', primary_available_qty)
+										if primary_available_qty > 0.1:
+											container_doc.db_set('status', "Active")
 										stock_detail_doc.db_set('reserved_qty',reserved_qty)
 										
 									else:     
@@ -748,6 +769,8 @@ def on_cancel(doc, method):
 										if consumed_qty < 0:
 											consumed_qty = 0
 										stock_detail_doc.db_set('consumed_qty', consumed_qty)
+										actual_container_qty = container_doc.actual_container_qty + flt(stock_detail_doc.reserved_qty, precision) + flt(reserved_qty[i], precision)
+										container_doc.db_set("actual_container_qty", actual_container_qty)
 										container_doc.add_comment('Comment', f"Released qty: {flt(flt(reserved_qty[i]), precision)} for transaction with Stock Entry: {doc.name}")
 										frappe.db.commit()
 									else:

@@ -24,6 +24,26 @@ frappe.ui.form.on('Container', {
 			}
 		}
 	},
+	refresh: function(frm) {
+        if (frm.doc.delivery_document_no && frm.doc.delivery_document_type) {
+            return;
+        }
+
+        let total_consumed_qty = 0;
+        let show_status = false;
+
+        (frm.doc.stock_details || []).forEach(row => {
+            if (row.stock_entry && row.consumed_qty > 0) {
+                total_consumed_qty += row.consumed_qty;
+                show_status = true;
+            }
+        });
+        if (show_status && total_consumed_qty > 0 && frm.doc.consumption_status) {
+            let combined_status = `${frm.doc.status} / ${frm.doc.consumption_status}`;
+            frm.page.set_indicator(combined_status, 'orange');
+        }
+    },
+
 	base_expiry_date:function(frm){
 		calculate_base_and_room_temp_in_days(frm)
 	},
