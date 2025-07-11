@@ -86,7 +86,6 @@ frappe.ui.form.on('Stock Entry', {
 									warehouse_list.push(target_warehouse)
 								}
 							})
-
 						frappe.call({
 								method:"container.container.doctype.stock_entry.stock_entry.get_container_no",
 								args:{
@@ -121,13 +120,18 @@ frappe.ui.form.on('Stock Entry', {
 												let available_qty_use="";
 												let available_qty="";
 												for (let i = 0; i < r.message.target.container_no.length; i++) {
-													container_no=container_no+String(r.message.target.container_no[i])+","
-													available_qty=available_qty+String(r.message.target.primary_available_qty[i])+","
-													available_qty_use=available_qty_use+String(r.message.target.primary_available_qty_used[i])+","
-													if(r.message.scrap_qty==1){qty=qty + r.message.target.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
-											else{qty=qty + r.message.target.qty_in_bom_uom[i]}
+													let current_available_qty = parseFloat(r.message.target.primary_available_qty[i]);
+													if (current_available_qty > 0.1) {
+														container_no += String(r.message.target.container_no[i]) + ",";
+														available_qty += String(r.message.target.primary_available_qty[i]) + ",";
+														available_qty_use += String(r.message.target.primary_available_qty_used[i]) + ",";
 
-													
+														if (r.message.scrap_qty == 1) {
+															qty += r.message.target.qty_in_bom_uom[i] + (0.1 / child.conversion_factor);
+														} else {
+															qty += r.message.target.qty_in_bom_uom[i];
+														}
+													}
 												}
 												child.containers=container_no
 												child.qty=qty
