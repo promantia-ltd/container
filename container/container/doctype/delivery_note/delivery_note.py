@@ -207,7 +207,9 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             # Update container primary and secondary qty after consumption
             container_doc = frappe.get_doc("Container", container)
             container_pending_qty = container_doc.primary_available_qty - container_consumed_qty
+            actual_container_qty = container_doc.actual_container_qty - container_consumed_qty
             container_doc.db_set('primary_available_qty', container_pending_qty)
+            container_doc.db_set('actual_container_qty', actual_container_qty)
             secondary_uom_conversion_value = frappe.db.get_value("UOM Conversion Detail", {
                 'parenttype': 'Item',
                 'parent': container_doc.item_code,
@@ -273,7 +275,9 @@ def update_containers_after_cancel_dn(container, delivery_note):
                     'uom_type': 'Secondary UOM'},
                     'conversion_factor')
         secondary_consumed_qty = consumed_qty/secondary_uom_conversion_value
+        actual_container_qty = container_doc.actual_container_qty + consumed_qty
         container_doc.db_set('secondary_available_qty', container_doc.secondary_available_qty + secondary_consumed_qty)
+        container_doc.db_set("actual_container_qty", actual_container_qty)
         container_doc.db_set('status', "Active")
 
 def add_containers_before_save(doc,method):

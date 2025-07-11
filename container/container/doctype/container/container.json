@@ -59,6 +59,7 @@
   "primary_uom",
   "primary_available_qty",
   "ignore_scrap_qty_01_kg",
+  "actual_container_qty",
   "invoice_details",
   "sales_invoice",
   "stock_transactions_section",
@@ -80,6 +81,8 @@
   "container_details",
   "company",
   "status",
+  "column_break_soed",
+  "consumption_status",
   "container_details_section",
   "fg_item",
   "used_containers",
@@ -660,12 +663,29 @@
    "fieldtype": "Data",
    "label": "Batch",
    "read_only": 1
+  },
+  {
+   "fieldname": "actual_container_qty",
+   "fieldtype": "Float",
+   "label": "Actual Container Qty",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_soed",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "consumption_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Consumption Status",
+   "options": "Partially Consumed\nConsumed"
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-barcode",
  "links": [],
- "modified": "2025-07-01 16:22:25.359165",
+ "modified": "2025-07-11 17:22:09.601477",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container",
