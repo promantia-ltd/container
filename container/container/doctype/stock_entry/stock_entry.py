@@ -368,7 +368,6 @@ def set_containers_status(doc, method):
 								used_qty=container_doc.primary_available_qty - reserved_qty
 								if used_qty<=0:
 									used_qty=0
-									container_doc.db_set("status", "Inactive")
 								container_doc.db_set("primary_available_qty", used_qty)
 								reserve_qty_str = "  Reserved Qty : " + str(reserved_qty)
 
@@ -534,6 +533,10 @@ def set_containers_status(doc, method):
 
 													# Compare with initial_qty
 													if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision):
+														container_doc.db_set("consumption_status", "Consumed")
+
+													if flt(container_doc.actual_container_qty, precision) <= 0 and flt(container_doc.initial_qty, precision) > 0:
+														container_doc.db_set("status", "Inactive")
 														container_doc.db_set("consumption_status", "Consumed")
 										
 										except Exception as e:
@@ -762,16 +765,23 @@ def on_cancel(doc, method):
 								if stock_detail_doc:
 									stock_detail_doc = get_doc("Stock Details", stock_detail_doc)
 									
-									#it will back to reserved state
 									if has_partially_reserved:
-										stock_detail_doc.db_set('reserved_qty',flt(stock_detail_doc.reserved_qty, precision) + flt(reserved_qty[i], precision))
-										consumed_qty = stock_detail_doc.consumed_qty - flt(reserved_qty[i], precision)
-										if consumed_qty < 0:
-											consumed_qty = 0
-										stock_detail_doc.db_set('consumed_qty', consumed_qty)
-										actual_container_qty = container_doc.actual_container_qty + flt(stock_detail_doc.reserved_qty, precision) + flt(reserved_qty[i], precision)
-										container_doc.db_set("actual_container_qty", actual_container_qty)
-										container_doc.add_comment('Comment', f"Released qty: {flt(flt(reserved_qty[i]), precision)} for transaction with Stock Entry: {doc.name}")
+										qty_to_revert = flt(reserved_qty[i], precision)
+
+										stock_detail_doc.db_set('consumed_qty', 0)
+										stock_detail_doc.db_set('reserved_qty', qty_to_revert)
+										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
+										container_doc.db_set('actual_container_qty', new_actual_qty)
+										if new_actual_qty > 0:
+											container_doc.db_set('status', 'Active')
+
+										container_doc.db_set('consumption_status', "")
+
+										container_doc.add_comment(
+											'Comment',
+											f"Reverted {qty_to_revert} from consumed to reserved on cancellation of Stock Entry: {doc.name}"
+										)
+
 										frappe.db.commit()
 									else:
 										#for ntpt manufacturing cancle entry is on hold
