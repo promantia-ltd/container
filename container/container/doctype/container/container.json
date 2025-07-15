@@ -679,13 +679,13 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Consumption Status",
-   "options": "Partially Consumed\nConsumed"
+   "options": "\nPartially Consumed\nConsumed"
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-barcode",
  "links": [],
- "modified": "2025-07-11 17:22:09.601477",
+ "modified": "2025-07-14 16:01:32.923731",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container",
