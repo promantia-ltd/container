@@ -234,7 +234,7 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
                 container_doc.db_set('status', "Inactive")
                 container_doc.db_set('consumption_status', "Consumed")
             else:
-                container_doc.db_set('status', "Partially Delivered")
+                container_doc.db_set('status', "Active")
                 container_doc.db_set('consumption_status', "Partially Consumed")
     frappe.db.commit()
 
