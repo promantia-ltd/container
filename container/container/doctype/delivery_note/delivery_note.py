@@ -232,8 +232,10 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             qty_to_be_assigned = qty_to_be_assigned - container_consumed_qty
             if container_pending_qty <= 0:
                 container_doc.db_set('status', "Inactive")
+                container_doc.db_set('consumption_status', "Consumed")
             else:
-                container_doc.db_set('status', "Partially Delivered")
+                container_doc.db_set('status', "Active")
+                container_doc.db_set('consumption_status', "Partially Consumed")
     frappe.db.commit()
 
 
@@ -279,6 +281,7 @@ def update_containers_after_cancel_dn(container, delivery_note):
         container_doc.db_set('secondary_available_qty', container_doc.secondary_available_qty + secondary_consumed_qty)
         container_doc.db_set("actual_container_qty", actual_container_qty)
         container_doc.db_set('status', "Active")
+        container_doc.db_set('consumption_status', "")
 
 def add_containers_before_save(doc,method):
     try:
