@@ -224,9 +224,10 @@ doc_events = {
             "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
             ]
     },
-    "Job Card": {
-        "after_insert": "container.container.doctype.job_card.job_card.after_insert"
-    },
+    # This commented code may require in future, so pls do not remove it.
+    # "Job Card": {
+    #     "after_insert": "container.container.doctype.job_card.job_card.after_insert"
+    # },
 }
 
 # Scheduled Tasks
