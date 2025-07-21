@@ -19,23 +19,121 @@ def get_containers(selected_containers, item):
 
 
 def container_processing(doc, method):
+    if not doc.is_return:
+        for item in doc.items:
+            if item.is_containerized:
+                container_list = item.container_list
+                container_no_list = container_list.split(",")
+                # chek containers are valid and qty is available at the containers
+                validate_container_qty(container_no_list=container_no_list,
+                                    item_code=item.item_code,
+                                    required_qty=item.stock_qty,
+                                    warehouse=item.warehouse)
+                update_containers(container_no_list=container_no_list,
+                                required_qty=item.stock_qty,
+                                delivery_note_docname=doc.name)
+
+def update_containers_on_return(doc, method):
+    if not doc.is_return:
+        return
+
     for item in doc.items:
-        if item.is_containerized:
-            container_list = item.container_list
-            container_no_list = container_list.split(",")
-            # chek containers are valid and qty is available at the containers
-            validate_container_qty(container_no_list=container_no_list,
-                                   item_code=item.item_code,
-                                   required_qty=item.stock_qty,
-                                   warehouse=item.warehouse)
-            update_containers(container_no_list=container_no_list,
-                              required_qty=item.stock_qty,
-                              delivery_note_docname=doc.name)
-    
+        return_qty = abs(item.qty)
+        container_ids = (item.container_list or "").split(",")
+        container_ids = [c.strip() for c in container_ids if c.strip()]
+
+        for container_id in container_ids:
+            if return_qty <= 0:
+                break
+
+            container = frappe.get_doc("Container", container_id)
+            updated = False
+
+            for sd in container.stock_details:
+                if sd.delivery_note == doc.return_against and (sd.consumed_qty or 0) > 0:
+                    if return_qty <= 0:
+                        break
+
+                    if sd.consumed_qty >= return_qty:
+                        sd.consumed_qty -= return_qty
+                        sd.sales_return_qty = (sd.sales_return_qty or 0) + return_qty
+
+                        container.primary_available_qty += return_qty
+                        container.secondary_available_qty += return_qty
+                        container.db_set("status", "Active")
+
+                        return_qty = 0
+                        updated = True
+                        break
+                    else:
+                        returned_now = sd.consumed_qty
+
+                        return_qty -= returned_now
+
+                        sd.sales_return_qty = (sd.sales_return_qty or 0) + returned_now
+                        sd.consumed_qty = 0
+
+                        container.primary_available_qty += returned_now
+                        container.secondary_available_qty += returned_now
+                        container.db_set("status", "Active")
+
+                        updated = True
+
+            if updated:
+                container.save(ignore_permissions=True)
+
+def revert_containers_on_return_cancel(doc, method):
+    if not doc.is_return:
+        return
+      
+    for item in doc.items:
+        return_qty = abs(item.qty)
+        container_ids = (item.container_list or "").split(",")
+        container_ids = [c.strip() for c in container_ids if c.strip()]
+
+        for container_id in container_ids:
+            if return_qty <= 0:
+                break
+
+            container = frappe.get_doc("Container", container_id)
+            updated = False
+
+            for sd in container.stock_details:
+                if sd.delivery_note == doc.return_against and (sd.sales_return_qty or 0) > 0:
+                    if return_qty <= 0:
+                        break
+
+                    if sd.sales_return_qty >= return_qty:
+                        sd.sales_return_qty -= return_qty
+                        sd.consumed_qty += return_qty
+
+                        container.primary_available_qty -= return_qty
+                        container.secondary_available_qty -= return_qty
+
+                        return_qty = 0
+                        updated = True
+                        break
+                    else:
+                        reverted_now = sd.sales_return_qty
+
+                        return_qty -= reverted_now
+                        sd.consumed_qty += reverted_now
+                        sd.sales_return_qty = 0
+
+                        container.primary_available_qty -= reverted_now
+                        container.secondary_available_qty -= reverted_now
+
+                        updated = True
+
+            if updated:
+                container.save(ignore_permissions=True)
+
+
 def validate_containers(doc,method):
-    for item in doc.items:
-        if item.is_containerized and not item.container_list:
-            frappe.throw('Container List is mandatory for Item '+item.item_code)
+    if not doc.is_return:
+        for item in doc.items:
+            if item.is_containerized and not item.container_list:
+                frappe.throw('Container List is mandatory for Item '+item.item_code)
 
 def validate_container_qty(container_no_list, item_code, required_qty, warehouse):
     total_qty = 0.0
@@ -109,7 +207,9 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             # Update container primary and secondary qty after consumption
             container_doc = frappe.get_doc("Container", container)
             container_pending_qty = container_doc.primary_available_qty - container_consumed_qty
+            actual_container_qty = container_doc.actual_container_qty - container_consumed_qty
             container_doc.db_set('primary_available_qty', container_pending_qty)
+            container_doc.db_set('actual_container_qty', actual_container_qty)
             secondary_uom_conversion_value = frappe.db.get_value("UOM Conversion Detail", {
                 'parenttype': 'Item',
                 'parent': container_doc.item_code,
@@ -130,6 +230,12 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             comment = f"{container_doc.warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a> " + str(container_consumed_qty) + "<br>"
             delivery_note_doc.add_comment('Comment', comment)
             qty_to_be_assigned = qty_to_be_assigned - container_consumed_qty
+            if container_pending_qty <= 0:
+                container_doc.db_set('status', "Inactive")
+                container_doc.db_set('consumption_status', "Consumed")
+            else:
+                container_doc.db_set('status', "Active")
+                container_doc.db_set('consumption_status', "Partially Consumed")
     frappe.db.commit()
 
 
@@ -171,7 +277,11 @@ def update_containers_after_cancel_dn(container, delivery_note):
                     'uom_type': 'Secondary UOM'},
                     'conversion_factor')
         secondary_consumed_qty = consumed_qty/secondary_uom_conversion_value
+        actual_container_qty = container_doc.actual_container_qty + consumed_qty
         container_doc.db_set('secondary_available_qty', container_doc.secondary_available_qty + secondary_consumed_qty)
+        container_doc.db_set("actual_container_qty", actual_container_qty)
+        container_doc.db_set('status', "Active")
+        container_doc.db_set('consumption_status', "")
 
 def add_containers_before_save(doc,method):
     try:
@@ -240,8 +350,9 @@ def update_dn_details_container(self, method):
         self: The Delivery Note document instance.
         method: The hook method triggering this function.
     """
-    for row in self.items:
-        if row.container_list:
-            container_list = row.container_list.split(",")
-            for container in container_list:
-                frappe.db.set_value('Container', container, {'delivery_document_type': 'Delivery Note', 'delivery_document_no': self.name})
+    if not self.is_return:
+        for row in self.items:
+            if row.container_list:
+                container_list = row.container_list.split(",")
+                for container in container_list:
+                    frappe.db.set_value('Container', container, {'delivery_document_type': 'Delivery Note', 'delivery_document_no': self.name})

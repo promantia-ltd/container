@@ -294,7 +294,9 @@ def delete_reserved_containers(work_order):
 def unreserve_stock(work_order):
     unreserved_count=0
     comment="Unreserved Qty:<br>"
-    stock_details=frappe.db.get_all('Stock Details',filters={'reserved_qty':['>',0],'work_order': work_order},fields={'name','parent'})
+    stock_entry_ids = set()
+    
+    stock_details=frappe.db.get_all('Stock Details',filters={'reserved_qty':['>',0],'work_order': work_order},fields={'name','parent','stock_entry'})
     for detail in stock_details:
         unreserved_count=unreserved_count+1
         stock_detail_doc=frappe.get_doc('Stock Details',detail['name'])
@@ -308,7 +310,19 @@ def unreserve_stock(work_order):
         if float(reserved_qty)>0:
             container_doc.db_set('primary_available_qty',container_doc.primary_available_qty+float(reserved_qty))
             container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty+secondary_uom_qty)
+        if detail.get("stock_entry"):
+            stock_entry_ids.add(detail["stock_entry"])
         frappe.db.commit()
+        
+    for stock_entry_id in stock_entry_ids:
+        try:
+            stock_entry_doc = frappe.get_doc("Stock Entry", stock_entry_id)
+            if stock_entry_doc.docstatus == 1:
+                stock_entry_doc.cancel()
+                frappe.db.commit()
+        except Exception as e:
+            frappe.log_error(f"Error cancelling Stock Entry {stock_entry_id}: {str(e)}", "Unreserve Stock")
+            
     add_comment('Work Order',work_order,comment)
     if unreserved_count>0:
         frappe.msgprint('Stock Unreserved Successfully')

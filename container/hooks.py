@@ -27,6 +27,36 @@ _standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_cr
 fixtures = [
     {"dt": "Custom Field", "filters": [["module", "=", "Container"]]},
     {"dt": "Property Setter", "filters": [["module", "=", "Container"]]},
+    {
+        "dt": "Client Script",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Remove Container Serial no on Duplicaition"],
+            ]
+        ],
+    },
+    {
+        "dt": "Server Script",
+        "filters": [
+            [
+                "name",
+                "in",
+                ["Check DN"],
+            ]
+        ],
+    },
+    {
+        "dt": "Report",
+        "filters": [
+            [
+                "name", "in", [
+                    "Container VS Bin Stock Balance"
+                ]
+            ]
+        ]
+    },
 ]
 
 # include js, css files in header of desk.html
@@ -58,7 +88,9 @@ doctype_js = {
     "Warehouse": "container/doctype/warehouse/warehouse.js",
     "Pick List": "container/doctype/pick_list/pick_list.js",
 }
-doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_list.js"}
+doctype_list_js = {"Stock Entry": "container/doctype/stock_entry/stock_entry_list.js",
+                   "Stock Reconciliation": "container/doctype/stock_reconciliation/stock_reconciliation_list.js"
+                   }
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
 
@@ -166,7 +198,9 @@ doc_events = {
     },
     "Purchase Receipt": {
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
-        "on_submit": "container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
+        "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
+                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_details_from_pr",
+                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_precision"],
         "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
         # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },
@@ -180,17 +214,20 @@ doc_events = {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
     },
     "Delivery Note": {
-        "on_submit": "container.container.doctype.delivery_note.delivery_note.container_processing",
-        "on_cancel": "container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
+        "on_submit": ["container.container.doctype.delivery_note.delivery_note.container_processing",
+                      "container.container.doctype.delivery_note.delivery_note.update_containers_on_return"],
+        "on_cancel": ["container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
+                      "container.container.doctype.delivery_note.delivery_note.revert_containers_on_return_cancel"],
         "validate": "container.container.doctype.delivery_note.delivery_note.add_containers_before_save",
         "before_submit": [
             "container.container.doctype.delivery_note.delivery_note.validate_containers",
             "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
             ]
-
-
-
-    }
+    },
+    # This commented code may require in future, so pls do not remove it.
+    # "Job Card": {
+    #     "after_insert": "container.container.doctype.job_card.job_card.after_insert"
+    # },
 }
 
 # Scheduled Tasks
