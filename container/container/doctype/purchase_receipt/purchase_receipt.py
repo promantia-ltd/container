@@ -58,6 +58,82 @@ def on_submit(self, method):
                 f"An error occurred while processing the submission. Created entities have been rolled back."
             )
         )
+        
+def update_container_details_from_pr(doc, method):
+    updated_containers_map = {}
+
+    for row in doc.custom_container_qty_details:
+        item_code = row.item_code
+
+        if item_code not in updated_containers_map:
+            # Get all containers for the item and PR
+            containers = frappe.get_all(
+                "Container",
+                filters={
+                    "purchase_document_no": doc.name,
+                    "item_code": item_code
+                },
+                fields=["name"],
+                order_by="creation asc"
+            )
+            updated_containers_map[item_code] = {
+                "all": [c.name for c in containers],
+                "used": set()
+            }
+
+        available_containers = updated_containers_map[item_code]["all"]
+        used_containers = updated_containers_map[item_code]["used"]
+
+        # Find next unused container
+        container_to_update = None
+        for cname in available_containers:
+            if cname not in used_containers:
+                container_to_update = cname
+                used_containers.add(cname)
+                break
+
+        if not container_to_update:
+            frappe.msgprint(f"No available container to update for item {item_code}")
+            continue
+
+        # Update the container with row data
+        container_doc = frappe.get_doc("Container", container_to_update)
+        container_doc.primary_available_qty = row.qty
+        container_doc.initial_qty = row.qty
+        container_doc.actual_container_qty = row.qty
+        container_doc.warehouse = row.warehouse
+        container_doc.custom_container_reference = row.container_ref
+        container_doc.status = "Active"
+        container_doc.save(ignore_permissions=True)
+        
+def update_container_precision(doc, method):
+    for item in doc.items:
+        if not item.is_containerized:
+            continue
+
+        container_ids = (item.containers or "").splitlines()
+        container_ids = [c.strip() for c in container_ids if c.strip()]
+
+        if not container_ids:
+            continue
+
+        # Sum up primary_available_qty for these containers
+        total_primary_qty = 0
+        for container_id in container_ids:
+            primary_qty = frappe.db.get_value("Container", container_id, "primary_available_qty") or 0
+            total_primary_qty += primary_qty
+
+        # Calculate difference
+        diff = item.qty - total_primary_qty
+
+        # Adjust last container if needed
+        if abs(diff) > 0 and container_ids:
+            last_container_id = container_ids[-1]
+            last_container = frappe.get_doc("Container", last_container_id)
+            last_container.primary_available_qty += diff
+            if last_container.primary_available_qty < 0:
+                last_container.primary_available_qty = 0
+            last_container.save()
 
 
 def container_creation(self, method):
@@ -292,7 +368,9 @@ def on_cancel(self,method=None):
                 container_no_list.extend(item_container.split("\n"))
      for container in container_no_list:
         sp_doc=frappe.get_doc(container_no_doc,container)
-        sp_doc.db_set("status","Inactive")
+        sp_doc.db_set("primary_available_qty", 0)
+        sp_doc.db_set("secondary_available_qty", 0)
+        sp_doc.db_set("status","Cancelled")
         frappe.db.commit()
         
 def get_auto_container_nos(container_no_series, qty):
@@ -425,7 +503,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
 
             # Final check based on total stock_qty and document status
             total_stock_qty = item_total_stock_qty[item_code]
-            if docstatus == '1' and is_return == 0:
+            if docstatus == '1' and int(is_return) == 0:
                 if flt(total_qty) > flt(total_stock_qty):
                     frappe.throw(_("Quantity exceeded. Expected Total Qty of the item {0} in warehouse {1} should not be more than {2}")
                                  .format(item_code, original_warehouse, total_stock_qty))
@@ -457,6 +535,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
                     # Set container quantities
                     sp_doc.db_set('primary_available_qty', primary_qty)
                     sp_doc.db_set("secondary_available_qty", secondary_qty)
+                    sp_doc.db_set("initial_qty", primary_qty)
                     sp_doc.db_set('updated', sp['updated'])
 
                     # Only activate containers with non-zero quantity
@@ -563,10 +642,18 @@ def save_container_reference_number(quantity, docstatus):
                 {"parent": sp['item_code'], "uom": sp['uom']},
                 "conversion_factor"
             )
+            
+            secondary_uom_cf = frappe.db.get_value(
+                        "UOM Conversion Detail",
+                        {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
+                        "conversion_factor"
+                    )
             if not purchase_uom_conversion:
                 frappe.throw(f"UOM conversion factor missing for item {sp['item_code']} and UOM {sp['uom']}")
 
             sp_doc.db_set('primary_available_qty', flt(sp['quantity']) * purchase_uom_conversion)
+            sp_doc.db_set('secondary_available_qty', flt(sp['quantity']) * purchase_uom_conversion / secondary_uom_cf)
+            sp_doc.db_set('initial_qty', flt(sp['quantity']) * purchase_uom_conversion)
 
             # Ensure container status remains inactive for Save action
             if docstatus == '0':  # Save only

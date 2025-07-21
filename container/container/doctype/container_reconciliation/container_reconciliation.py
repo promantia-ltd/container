@@ -6,7 +6,14 @@ from frappe.model.document import Document
 from frappe.utils import cint
 
 class ContainerReconciliation(Document):
-	pass
+	def on_cancel(self):
+		for item in self.items:
+			if item.container:
+				container = frappe.get_doc("Container", item.container)
+				
+				container.primary_available_qty = item.current_qty or 0
+				container.secondary_available_qty = item.current_qty or 0
+				container.save()
 
 @frappe.whitelist()
 def get_new_containers(item,count):
