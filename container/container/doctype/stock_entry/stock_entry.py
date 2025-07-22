@@ -348,7 +348,6 @@ def set_containers_status(doc, method):
 								used_qty=container_doc.primary_available_qty - reserved_qty
 								if used_qty<=0:
 									used_qty=0
-									container_doc.db_set("status", "Inactive")
 								container_doc.db_set("primary_available_qty", used_qty)
 								reserve_qty_str = "  Reserved Qty : " + str(flt(qty_assigned[index], precision))
 
@@ -412,7 +411,6 @@ def set_containers_status(doc, method):
 								primary_available = container_doc.primary_available_qty - reserved_qty
 								if primary_available!=0 and primary_available < 0.01:
 									primary_available = 0
-									container_doc.db_set("status", "Inactive")
 								container_doc.db_set("primary_available_qty", primary_available)
 								reserve_qty_str = "  Reserved Qty : " + str(flt(qty_assigned[index], precision))
 
@@ -432,7 +430,6 @@ def set_containers_status(doc, method):
 									primary_available = container_doc.primary_available_qty - reserved_qty
 									if primary_available!=0 and primary_available < 0.01:
 										primary_available = 0
-										container_doc.db_set("status", "Inactive")
 									container_doc.db_set("primary_available_qty", primary_available)
 									reserve_qty_str = "  Reserved Qty : " + str(reserved_qty)
 
@@ -505,6 +502,8 @@ def set_containers_status(doc, method):
 														stock_detail_doc.db_set('reserved_qty',reserved_total)
 														actual_container_qty = container_doc.actual_container_qty - consumed_qty
 														container_doc.db_set("actual_container_qty",actual_container_qty)
+														if actual_container_qty <= 0:
+															container_doc.db_set("status","Inactive")
 														container_doc.db_set("consumption_status","Partially Consumed")
 														container_doc.add_comment('Comment','Used qty: '+str(flt(flt(qty_used), precision))+' for transaction with Stock Entry: '+doc.name)
 						
@@ -797,6 +796,7 @@ def on_cancel(doc, method):
 							created_container_doc = get_doc(container_doctype, fg_cont.name)
 							created_container_doc.db_set("primary_available_qty", 0)
 							created_container_doc.db_set("secondary_available_qty", 0)
+							created_container_doc.db_set("actual_container_qty", 0)
 							created_container_doc.db_set("status", "Inactive")
 							cont += fg_cont.name + "\n"
 							frappe.db.commit()

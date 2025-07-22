@@ -93,6 +93,7 @@ def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_cont
                         purchase_document_no=self.name,
                         primary_uom=item_doc.stock_uom,
                         primary_available_qty=(qty/len(container_list)),
+                        actual_container_qty=(qty/len(container_list)),
                         secondary_uom=secondary_uom,
                         secondary_available_qty=(qty/len(container_list))/secondary_uom_cf,
                         status="Active",
