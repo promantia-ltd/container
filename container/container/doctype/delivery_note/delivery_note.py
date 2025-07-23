@@ -230,7 +230,7 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
             comment = f"{container_doc.warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a> " + str(container_consumed_qty) + "<br>"
             delivery_note_doc.add_comment('Comment', comment)
             qty_to_be_assigned = qty_to_be_assigned - container_consumed_qty
-            if container_pending_qty <= 0:
+            if actual_container_qty <= 0:
                 container_doc.db_set('status', "Inactive")
                 container_doc.db_set('consumption_status', "Consumed")
             else:
