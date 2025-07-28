@@ -222,6 +222,10 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 	has_partially_reserved = partially_reserved()
 	remaining_qty = ""
 	item_doc = frappe.get_doc("Item", item)
+	if item_doc.ignore_scrap_qty == True:
+		scrap_qty = 0.1
+	else:
+		scrap_qty = 0
 
 	if item_doc.is_containerized == 1:
 		uom_list = frappe.db.get_all("UOM Conversion Detail", filters={'parenttype': 'Item', 'parent': item, 'uom': uom}, fields={'*'})
@@ -254,35 +258,37 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 
 				for data in query:
 					if data.parent not in used:
-						if flt(data.primary_available_qty, precision) < required_qty:
-							#here full container qty is used
-							container_no.append(data.parent)
-							
-							if has_partially_reserved:
-								#this based on partial qty
-								required_qty = required_qty - flt(data.reserved_qty, precision)
-								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(data.reserved_qty, precision))
-
-							else:
-								#here full container is reserved
+						if not has_partially_reserved:
+							if flt(data.primary_available_qty, precision) < required_qty and data.primary_available_qty > scrap_qty:
+								
+								#here full container qty is used
+								container_no.append(data.parent)
 								required_qty = required_qty - flt(data.primary_available_qty, precision)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(data.primary_available_qty, precision))
 
-						elif flt(data.primary_available_qty, precision) >= required_qty:
-							container_no.append(data.parent)
-							if has_partially_reserved:
-								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(required_qty, precision))
-								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
-
-							else:
+							elif flt(data.primary_available_qty, precision) >= required_qty:
+								container_no.append(data.parent)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(required_qty, precision))
 								remaining_qty = f"{data.parent}:{flt(data.primary_available_qty - required_qty, precision)}"
 					
-							break
+								break
+
+						else:
+							if flt(data.reserved_qty, precision) < required_qty and flt(data.reserved_qty, precision) > scrap_qty:
+								container_no.append(data.parent)
+								reserved_qty.append(data.reserved_qty)
+								reserved_qty_used.append(flt(required_qty, precision))
+								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
+
+							elif flt(data.reserved_qty, precision) >= required_qty:
+								container_no.append(data.parent)
+								reserved_qty.append(data.reserved_qty)
+								reserved_qty_used.append(flt(required_qty, precision))
+								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
+						
+								break
 
 				return container_no, reserved_qty, remaining_qty, reserved_qty_used
 
