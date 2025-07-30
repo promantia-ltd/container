@@ -552,6 +552,10 @@ function show_container_dialog(frm) {
             let total = flt(item_total_qty[item_code]);
             let accepted = flt(item_qty_map[item_code]);
 
+            // Round both to 3 decimal places for safe comparison
+            total = Math.round(total * 1e3) / 1e3;
+            accepted = Math.round(accepted * 1e3) / 1e3;
+
             if (total > accepted) {
                 frappe.throw(`Qty exceeded for ${item_code}: Containers=${total}, Accepted=${accepted}`);
                 return false;
