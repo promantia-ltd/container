@@ -107,33 +107,34 @@ def update_container_details_from_pr(doc, method):
         container_doc.save(ignore_permissions=True)
         
 def update_container_precision(doc, method):
-    for item in doc.items:
-        if not item.is_containerized:
-            continue
+    if not doc.is_return:
+        for item in doc.items:
+            if not item.is_containerized:
+                continue
 
-        container_ids = (item.containers or "").splitlines()
-        container_ids = [c.strip() for c in container_ids if c.strip()]
+            container_ids = (item.containers or "").splitlines()
+            container_ids = [c.strip() for c in container_ids if c.strip()]
 
-        if not container_ids:
-            continue
+            if not container_ids:
+                continue
 
-        # Sum up primary_available_qty for these containers
-        total_primary_qty = 0
-        for container_id in container_ids:
-            primary_qty = frappe.db.get_value("Container", container_id, "primary_available_qty") or 0
-            total_primary_qty += primary_qty
+            # Sum up primary_available_qty for these containers
+            total_primary_qty = 0
+            for container_id in container_ids:
+                primary_qty = frappe.db.get_value("Container", container_id, "primary_available_qty") or 0
+                total_primary_qty += primary_qty
 
-        # Calculate difference
-        diff = item.qty - total_primary_qty
+            # Calculate difference
+            diff = item.qty - total_primary_qty
 
-        # Adjust last container if needed
-        if abs(diff) > 0 and container_ids:
-            last_container_id = container_ids[-1]
-            last_container = frappe.get_doc("Container", last_container_id)
-            last_container.primary_available_qty += diff
-            if last_container.primary_available_qty < 0:
-                last_container.primary_available_qty = 0
-            last_container.save()
+            # Adjust last container if needed
+            if abs(diff) > 0 and container_ids:
+                last_container_id = container_ids[-1]
+                last_container = frappe.get_doc("Container", last_container_id)
+                last_container.primary_available_qty += diff
+                if last_container.primary_available_qty < 0:
+                    last_container.primary_available_qty = 0
+                last_container.save()
 
 
 def container_creation(self, method):
@@ -290,7 +291,6 @@ def update_containers_on_full_return(self):
                 # Loop through containers and inactivate them until returned qty is covered
                 for container_no in container_list:
                     if total_covered_qty >= returned_qty:
-                        # Stop when the returned qty is covered
                         break
 
                     container_doc = frappe.get_doc("Container", container_no)
@@ -307,6 +307,15 @@ def update_containers_on_full_return(self):
                     new_qty = container_qty - qty_to_reduce
                     container_doc.db_set("primary_available_qty", new_qty)
                     container_doc.db_set("secondary_available_qty", 0)
+
+                    # Safely calculate reserved_qty (defaults to 0 if no child rows or field missing)
+                    reserved_qty_total = sum(
+                        [flt(getattr(d, "reserved_qty", 0)) for d in (container_doc.get("stock_details") or [])]
+                    )
+
+                    # Update actual_container_qty
+                    actual_qty = new_qty + reserved_qty_total
+                    container_doc.db_set("actual_container_qty", actual_qty)
 
                     if new_qty == 0:
                         container_doc.db_set("status", "Inactive")
