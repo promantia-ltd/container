@@ -768,54 +768,63 @@ def on_cancel(doc, method):
 			for item in doc.items:
 				item_doc = get_doc("Item", item.item_code)
 				if item.is_finished_item != 1 and item_doc.is_containerized == 1:
-						container_no_list = get_serial_nos(item.containers)
-						secondary_uom_conversion, primary_uom_conversion = get_uom_conversion(item)
+					container_no_list = get_serial_nos(item.containers)
+					secondary_uom_conversion, primary_uom_conversion = get_uom_conversion(item)
 
-						try:
-							reserved_qty=item.available_qty_use.split(",")
-						except Exception as e:
-							frappe.throw("Not properly updated available qty use for the reserved item " + item.item_code +" at row " + item.idx)
+					try:
+						# Changed from available_qty_use to available_qty
+						reserved_qty = item.available_qty.split(",")
+					except Exception:
+						frappe.throw(
+							"Not properly updated available qty for the reserved item "
+							+ item.item_code + " at row " + str(item.idx)
+						)
 
+					for i, container_no in enumerate(container_no_list):
+						if container_no and reserved_qty[i]:
+							stock_qty = flt(reserved_qty[i], precision) * primary_uom_conversion
+							secondary_uom_qty = stock_qty * secondary_uom_conversion
 
-						for i, container_no in enumerate(container_no_list):
-							if container_no and item.available_qty_use[i]:
-								stock_qty = flt(item.available_qty_use[i], precision) * primary_uom_conversion
-								secondary_uom_qty = stock_qty * secondary_uom_conversion
+							container_doc = get_doc(container_doctype, container_no)
+							stock_detail_name = frappe.db.get_value(
+								'Stock Details',
+								{'parent': container_doc.name, 'work_order': doc.work_order},
+								'name'
+							)
 
-								container_doc = get_doc(container_doctype, container_no)
-								stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+							if stock_detail_name:
+								stock_detail_doc = get_doc("Stock Details", stock_detail_name)
 
-								if stock_detail_doc:
-									stock_detail_doc = get_doc("Stock Details", stock_detail_doc)
-									
-									if has_partially_reserved:
-										qty_to_revert = flt(reserved_qty[i], precision)
+								if has_partially_reserved:
+									qty_to_revert = flt(reserved_qty[i], precision)
 
-										stock_detail_doc.db_set('consumed_qty', 0)
-										stock_detail_doc.db_set('reserved_qty', qty_to_revert)
-										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
-										container_doc.db_set('actual_container_qty', new_actual_qty)
-										if new_actual_qty > 0:
-											container_doc.db_set('status', 'Active')
+									stock_detail_doc.db_set('consumed_qty', 0)
+									stock_detail_doc.db_set('reserved_qty', qty_to_revert)
+									new_actual_qty = container_doc.actual_container_qty + qty_to_revert
+									container_doc.db_set('actual_container_qty', new_actual_qty)
+									if new_actual_qty > 0:
+										container_doc.db_set('status', 'Active')
 
-										container_doc.db_set('consumption_status', "")
+									container_doc.db_set('consumption_status', "")
 
-										container_doc.add_comment(
-											'Comment',
-											f"Reverted {qty_to_revert} from consumed to reserved on cancellation of Stock Entry: {doc.name}"
-										)
+									container_doc.add_comment(
+										'Comment',
+										f"Reverted {qty_to_revert} from consumed to reserved on cancellation of Stock Entry: {doc.name}"
+									)
 
-										frappe.db.commit()
-									else:
-										#for ntpt manufacturing cancle entry is on hold
-										pass
-
+									frappe.db.commit()
+								else:
+									# for ntpt manufacturing cancel entry is on hold
+									pass
 				else:
-					fg_containers = get_list("Container",filters={"purchase_document_no": item.parent, "fg_item": 1},fields=['name'])
+					fg_containers = get_list(
+						"Container",
+						filters={"purchase_document_no": item.parent, "fg_item": 1},
+						fields=['name']
+					)
 
 					if fg_containers:
 						cont = ""
-
 						for fg_cont in fg_containers:
 							created_container_doc = get_doc(container_doctype, fg_cont.name)
 							created_container_doc.db_set("primary_available_qty", 0)
