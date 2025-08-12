@@ -279,15 +279,16 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 							if flt(data.reserved_qty, precision) < required_qty and flt(data.reserved_qty, precision) > scrap_qty:
 								container_no.append(data.parent)
 								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(required_qty, precision))
+								reserved_qty_used.append(flt(data.reserved_qty, precision))  # container qty used
+								required_qty -= flt(data.reserved_qty, precision)  # reduce remaining needed qty
 								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
 
 							elif flt(data.reserved_qty, precision) >= required_qty:
 								container_no.append(data.parent)
 								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(required_qty, precision))
+								reserved_qty_used.append(flt(required_qty, precision))  # only what's still needed
 								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
-						
+								required_qty = 0
 								break
 
 				return container_no, reserved_qty, remaining_qty, reserved_qty_used
@@ -791,7 +792,9 @@ def on_cancel(doc, method):
 									if has_partially_reserved:
 										qty_to_revert = flt(reserved_qty[i], precision)
 
-										stock_detail_doc.db_set('consumed_qty', 0)
+										stock_detail_doc.db_set('consumed_qty', 
+											flt(stock_detail_doc.consumed_qty, precision) - qty_to_revert
+										)
 										stock_detail_doc.db_set('reserved_qty', qty_to_revert)
 										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
 										container_doc.db_set('actual_container_qty', new_actual_qty)
@@ -815,7 +818,6 @@ def on_cancel(doc, method):
 
 					if fg_containers:
 						cont = ""
-
 						for fg_cont in fg_containers:
 							created_container_doc = get_doc(container_doctype, fg_cont.name)
 							created_container_doc.db_set("primary_available_qty", 0)
