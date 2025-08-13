@@ -779,8 +779,8 @@ def on_cancel(doc, method):
 
 
 						for i, container_no in enumerate(container_no_list):
-							if container_no and item.available_qty_use[i]:
-								stock_qty = flt(item.available_qty_use[i], precision) * primary_uom_conversion
+							if container_no and reserved_qty[i]:
+								stock_qty = flt(reserved_qty[i], precision) * primary_uom_conversion
 								secondary_uom_qty = stock_qty * secondary_uom_conversion
 
 								container_doc = get_doc(container_doctype, container_no)
@@ -795,7 +795,9 @@ def on_cancel(doc, method):
 										stock_detail_doc.db_set('consumed_qty', 
 											flt(stock_detail_doc.consumed_qty, precision) - qty_to_revert
 										)
-										stock_detail_doc.db_set('reserved_qty', qty_to_revert)
+										stock_detail_doc.db_set('reserved_qty', 
+								  			flt(stock_detail_doc.reserved_qty) + qty_to_revert
+										)
 										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
 										container_doc.db_set('actual_container_qty', new_actual_qty)
 										if new_actual_qty > 0:
