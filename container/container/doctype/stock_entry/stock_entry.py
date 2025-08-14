@@ -222,6 +222,10 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 	has_partially_reserved = partially_reserved()
 	remaining_qty = ""
 	item_doc = frappe.get_doc("Item", item)
+	if item_doc.ignore_scrap_qty == True:
+		scrap_qty = 0.1
+	else:
+		scrap_qty = 0
 
 	if item_doc.is_containerized == 1:
 		uom_list = frappe.db.get_all("UOM Conversion Detail", filters={'parenttype': 'Item', 'parent': item, 'uom': uom}, fields={'*'})
@@ -254,35 +258,38 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 
 				for data in query:
 					if data.parent not in used:
-						if flt(data.primary_available_qty, precision) < required_qty:
-							#here full container qty is used
-							container_no.append(data.parent)
-							
-							if has_partially_reserved:
-								#this based on partial qty
-								required_qty = required_qty - flt(data.reserved_qty, precision)
-								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(data.reserved_qty, precision))
-
-							else:
-								#here full container is reserved
+						if not has_partially_reserved:
+							if flt(data.primary_available_qty, precision) < required_qty and data.primary_available_qty > scrap_qty:
+								
+								#here full container qty is used
+								container_no.append(data.parent)
 								required_qty = required_qty - flt(data.primary_available_qty, precision)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(data.primary_available_qty, precision))
 
-						elif flt(data.primary_available_qty, precision) >= required_qty:
-							container_no.append(data.parent)
-							if has_partially_reserved:
-								reserved_qty.append(data.reserved_qty)
-								reserved_qty_used.append(flt(required_qty, precision))
-								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
-
-							else:
+							elif flt(data.primary_available_qty, precision) >= required_qty:
+								container_no.append(data.parent)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(required_qty, precision))
 								remaining_qty = f"{data.parent}:{flt(data.primary_available_qty - required_qty, precision)}"
 					
-							break
+								break
+
+						else:
+							if flt(data.reserved_qty, precision) < required_qty and flt(data.reserved_qty, precision) > scrap_qty:
+								container_no.append(data.parent)
+								reserved_qty.append(data.reserved_qty)
+								reserved_qty_used.append(flt(data.reserved_qty, precision))  # container qty used
+								required_qty -= flt(data.reserved_qty, precision)  # reduce remaining needed qty
+								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
+
+							elif flt(data.reserved_qty, precision) >= required_qty:
+								container_no.append(data.parent)
+								reserved_qty.append(data.reserved_qty)
+								reserved_qty_used.append(flt(required_qty, precision))  # only what's still needed
+								remaining_qty = f"{data.parent}:{flt(flt(data.reserved_qty, precision) - required_qty, precision)}"
+								required_qty = 0
+								break
 
 				return container_no, reserved_qty, remaining_qty, reserved_qty_used
 
@@ -450,105 +457,123 @@ def set_containers_status(doc, method):
 		doc.add_comment('Comment', comment)
 
 
-	if doc.stock_entry_type=="Manufacture" and not doc.system_generated:
+	if doc.stock_entry_type == "Manufacture" and not doc.system_generated:
 		if doc.work_order:
 			for item in doc.items:
-				try:	
-					if item.is_finished_item!=1:
-						required_qty=flt(item.transfer_qty)
-						item_doc=frappe.get_doc("Item",item.item_code)
-						if item_doc.is_containerized==1:
-							secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
-							if secondary_uom_list:
-								secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
+				try:
+					if item.is_finished_item != 1:
+						required_qty = flt(item.transfer_qty)
+						item_doc = frappe.get_doc("Item", item.item_code)
+
+						if item_doc.is_containerized == 1:
+							# Get UOM conversions
+							secondary_uom_list = frappe.db.get_all(
+								"UOM Conversion Detail",
+								filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Secondary UOM'},
+								fields=['*']
+							)
+							if not secondary_uom_list:
+								frappe.throw("Secondary UOM not found. Please specify Secondary UOM in Item Master.")
+							secondary_uom_conversion = secondary_uom_list[0]['conversion_factor']
+
+							primary_uom_list = frappe.db.get_all(
+								"UOM Conversion Detail",
+								filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Primary UOM'},
+								fields=['*']
+							)
+							if not primary_uom_list:
+								frappe.throw("Primary UOM not found. Please specify Primary UOM in Item Master.")
+							primary_uom_conversion = primary_uom_list[0]['conversion_factor']
+
+							container_no = item.containers
+							if not container_no:
+								frappe.throw(f"Please set appropriate container for item at row {item.idx}")
+
+							container_no_list = container_no.split(",")
+							reserved_qty_list = str(item.available_qty_use).split(",")
+
+							# Decide scrap buffer based on ignore_scrap_qty
+							if item_doc.ignore_scrap_qty:
+								scrap_buffer = 0.1  # keep buffer
 							else:
-								frappe.throw("Secondary UOM not found,Please specify secondary uom in item master")
+								scrap_buffer = 0.0  # no buffer
 
-							primary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Primary UOM'},fields={'*'})
-							if primary_uom_list:
-								primary_uom_conversion=primary_uom_list[0]['conversion_factor']
-							else:
-								frappe.throw("Primary UOM not found,Please specify primary uom in item master")
+							for i in range(len(container_no_list)):
+								container_name = container_no_list[i]
+								if not container_name or not reserved_qty_list[i]:
+									continue
 
-							container_no_list=[]
-							container_no=item.containers
-							if container_no:
-								reserved_qty=str(item.available_qty_use).split(",")
-								container_no_list=container_no.split(",")
-								list_length = len(container_no_list)
-								for i in range(list_length):
-									if container_no_list[i]!="" and reserved_qty[i]!="":
-										stock_qty=flt(reserved_qty[i], precision)*primary_uom_conversion
-										secondary_uom_qty=stock_qty*secondary_uom_conversion
-										container_doc=frappe.get_doc(container_doctype,container_no_list[i])
-										stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+								container_doc = frappe.get_doc(container_doctype, container_name)
+								available_qty = flt(reserved_qty_list[i], precision)
 
-										try:
-											if stock_detail_doc:
-												stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
-												if has_partially_reserved:
-													if required_qty>0:
-														if required_qty>=(flt(reserved_qty[i], precision)+0.001):
-															qty_used=flt(reserved_qty[i], precision)
-														else:
-															qty_used=required_qty
-														reserved_total = flt(stock_detail_doc.reserved_qty, precision) - flt(qty_used, precision)
-														if reserved_total < 0:
-															reserved_total = 0
-														required_qty=required_qty-qty_used
-														actual_container_qty = container_doc.actual_container_qty
-														consumed_qty = (stock_detail_doc.consumed_qty or 0) + flt(qty_used, precision)
-														stock_detail_doc.db_set('consumed_qty', consumed_qty)
-														stock_detail_doc.db_set('reserved_qty',reserved_total)
-														actual_container_qty = container_doc.actual_container_qty - consumed_qty
-														container_doc.db_set("actual_container_qty",actual_container_qty)
-														if actual_container_qty <= 0:
-															container_doc.db_set("status","Inactive")
-														container_doc.db_set("consumption_status","Partially Consumed")
-														container_doc.add_comment('Comment','Used qty: '+str(flt(flt(qty_used), precision))+' for transaction with Stock Entry: '+doc.name)
-						
-												else:
-													stock_detail_doc=frappe.get_doc("Stock Details",stock_detail_doc)
-													stock_detail_doc.db_set('consumed_qty',(stock_detail_doc.consumed_qty  or 0) + flt(reserved_qty[i], precision))
-													container_doc.db_set("primary_available_qty",container_doc.primary_available_qty - flt(reserved_qty[i], precision))
-													container_doc.db_set('secondary_available_qty',container_doc.secondary_available_qty - secondary_uom_qty)
-													container_doc.add_comment('Comment','Used qty: '+str(flt(flt(reserved_qty[i]), precision))+' for transaction with Stock Entry: '+doc.name)
+								# Actual usable qty
+								usable_qty = flt(container_doc.actual_container_qty, precision) - scrap_buffer
+								if usable_qty <= 0:
+									continue
 
-												# stock_detail_doc.save(ignore_permissions=True)
-												# container_doc.save(ignore_permissions=True)
-												frappe.db.commit()
-												a=10
-												# After all updates, check if any container's total consumed_qty == initial_qty
-												for container_name in container_no_list:
-													if not container_name:
-														continue
-													container_doc = frappe.get_doc(container_doctype, container_name)
+								# How much can we take from this container?
+								qty_to_use = min(required_qty, usable_qty)
 
-													# Sum of consumed_qty in stock details for this container and this work order
-													total_consumed = frappe.db.sql("""
-														SELECT SUM(consumed_qty) FROM `tabStock Details`
-														WHERE parent = %s
-													""", (container_doc.name))[0][0] or 0
+								# Get stock detail row
+								stock_detail_name = frappe.db.get_value(
+									'Stock Details',
+									{'parent': container_doc.name, 'work_order': doc.work_order},
+									'name'
+								)
+								if not stock_detail_name:
+									continue
 
-													# Compare with initial_qty
-													if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision):
-														container_doc.db_set("consumption_status", "Consumed")
+								stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_name)
 
-													if flt(container_doc.actual_container_qty, precision) <= 0 and flt(container_doc.initial_qty, precision) > 0:
-														container_doc.db_set("status", "Inactive")
-														container_doc.db_set("consumption_status", "Consumed")
-										
-										except Exception as e:
-											frappe.db.rollback()
-											frappe.log_error("An error occurred: {}".format(str(e)))
-											frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
-							else:
-								frappe.throw('Please set appropriate container for item at row '+str(item.idx))
+								# Update Stock Detail
+								new_reserved_qty = flt(stock_detail_doc.reserved_qty, precision) - qty_to_use
+								if new_reserved_qty < 0:
+									new_reserved_qty = 0
+
+								new_consumed_qty = flt(stock_detail_doc.consumed_qty or 0) + qty_to_use
+								stock_detail_doc.db_set('consumed_qty', new_consumed_qty)
+								stock_detail_doc.db_set('reserved_qty', new_reserved_qty)
+
+								# Update Container
+								new_actual_qty = flt(container_doc.actual_container_qty, precision) - qty_to_use
+								if scrap_buffer > 0 and new_actual_qty < scrap_buffer:
+									new_actual_qty = scrap_buffer
+								elif scrap_buffer == 0 and new_actual_qty < 0:
+									new_actual_qty = 0
+
+								container_doc.db_set('actual_container_qty', new_actual_qty)
+								container_doc.db_set('consumption_status', "Partially Consumed")
+								container_doc.add_comment('Comment', f"Used qty: {qty_to_use} for Stock Entry: {doc.name}")
+
+								required_qty -= qty_to_use
+								frappe.db.commit()
+
+								if required_qty <= 0.0001:
+									break
+
+							# Final container status check
+							for container_name in container_no_list:
+								if not container_name:
+									continue
+								container_doc = frappe.get_doc(container_doctype, container_name)
+								total_consumed = frappe.db.sql("""
+									SELECT SUM(consumed_qty) FROM `tabStock Details`
+									WHERE parent = %s
+								""", container_doc.name)[0][0] or 0
+
+								# Fully consumed if usable qty is gone
+								if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision) - scrap_buffer:
+									container_doc.db_set("consumption_status", "Consumed")
+
+								if flt(container_doc.actual_container_qty, precision) <= scrap_buffer:
+									container_doc.db_set("status", "Active")
+									container_doc.db_set("consumption_status", "Consumed")
 
 				except Exception as e:
 					frappe.db.rollback()
 					frappe.log_error("An error occurred: {}".format(str(e)))
-					frappe.throw("An error occurred, While updating containers.For more info check the Error Log")
+					frappe.throw("An error occurred while updating containers. For more info, check the Error Log.")
+
 
 
 	if doc.stock_entry_type == "Manufacture" and not doc.system_generated and not doc.work_order:
@@ -754,8 +779,8 @@ def on_cancel(doc, method):
 
 
 						for i, container_no in enumerate(container_no_list):
-							if container_no and item.available_qty_use[i]:
-								stock_qty = flt(item.available_qty_use[i], precision) * primary_uom_conversion
+							if container_no and reserved_qty[i]:
+								stock_qty = flt(reserved_qty[i], precision) * primary_uom_conversion
 								secondary_uom_qty = stock_qty * secondary_uom_conversion
 
 								container_doc = get_doc(container_doctype, container_no)
@@ -767,8 +792,12 @@ def on_cancel(doc, method):
 									if has_partially_reserved:
 										qty_to_revert = flt(reserved_qty[i], precision)
 
-										stock_detail_doc.db_set('consumed_qty', 0)
-										stock_detail_doc.db_set('reserved_qty', qty_to_revert)
+										stock_detail_doc.db_set('consumed_qty', 
+											flt(stock_detail_doc.consumed_qty, precision) - qty_to_revert
+										)
+										stock_detail_doc.db_set('reserved_qty', 
+								  			flt(stock_detail_doc.reserved_qty) + qty_to_revert
+										)
 										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
 										container_doc.db_set('actual_container_qty', new_actual_qty)
 										if new_actual_qty > 0:
@@ -791,7 +820,6 @@ def on_cancel(doc, method):
 
 					if fg_containers:
 						cont = ""
-
 						for fg_cont in fg_containers:
 							created_container_doc = get_doc(container_doctype, fg_cont.name)
 							created_container_doc.db_set("primary_available_qty", 0)
