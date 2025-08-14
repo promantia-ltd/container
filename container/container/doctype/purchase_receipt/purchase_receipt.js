@@ -20,7 +20,7 @@ frappe.ui.form.on('Purchase Receipt', {
     before_submit: function(frm) {
         const has_containerized_items = frm.doc.items.some(item => item.is_containerized);
 
-        if (has_containerized_items && !frm.doc.custom_container_set_qty) {
+        if (has_containerized_items && !frm.doc.custom_container_set_qty && !frm.doc.is_return) {
             frappe.throw("Cannot Submit until containerized item quantities are Saved and Submitted.");
         }
     },
@@ -542,15 +542,15 @@ function show_container_dialog(frm) {
         { label: "Expiry Date", fieldname: "expiry_date", fieldtype: "Date", in_list_view: 1 }
     ];
 
-    // Validation
+    // Validation (we'll call it only in secondary_action)
     function validate(data) {
         let item_total_qty = {};
         data.container_details.forEach(row => {
             item_total_qty[row.item_code] = (item_total_qty[row.item_code] || 0) + flt(row.qty);
         });
         for (let item_code in item_total_qty) {
-            let total = flt(item_total_qty[item_code]);
-            let accepted = flt(item_qty_map[item_code]);
+            let total = Math.round(flt(item_total_qty[item_code]) * 1e3) / 1e3;
+            let accepted = Math.round(flt(item_qty_map[item_code]) * 1e3) / 1e3;
 
             // Round both to 3 decimal places for safe comparison
             total = Math.round(total * 1e3) / 1e3;
@@ -568,14 +568,6 @@ function show_container_dialog(frm) {
         return true;
     }
 
-    if (container_data.length === 0) {
-        frm.clear_table('custom_container_qty_details');
-        frm.set_value("custom_container_set_qty", 1);  // mark as handled
-        frm.refresh_field('custom_container_qty_details');
-        frm.save();
-        return;  // exit the function early, no dialog shown
-    }
-    // Dialog
     let dialog = new frappe.ui.Dialog({
         size: "large",
         title: "Set Container Quantities",
@@ -600,7 +592,6 @@ function show_container_dialog(frm) {
         primary_action() {
             let data = dialog.get_values();
             if (!data) return;
-            if (!validate(data)) return;
 
             frm.clear_table('custom_container_qty_details');
             data.container_details.forEach((row, idx) => {
@@ -616,31 +607,32 @@ function show_container_dialog(frm) {
         },
         secondary_action_label: "Save and Submit",
         secondary_action() {
-        let data = dialog.get_values();
-        if (!data) return;
-        if (!validate(data)) return;
+            // Validation only for submit
+            let data = dialog.get_values();
+            if (!data) return;
+            if (!validate(data)) return;
 
-        frm.clear_table('custom_container_qty_details');
-        data.container_details.forEach((row, idx) => {
-            let child = frm.add_child('custom_container_qty_details');
-            Object.assign(child, row);
-            child.slno = idx + 1;
-        });
+            frm.clear_table('custom_container_qty_details');
+            data.container_details.forEach((row, idx) => {
+                let child = frm.add_child('custom_container_qty_details');
+                Object.assign(child, row);
+                child.slno = idx + 1;
+            });
 
-        frm.set_value("custom_container_set_qty", 1);
+            frm.set_value("custom_container_set_qty", 1);
 
-        frm.refresh_field('custom_container_qty_details');
-        frm.save().then(() => {
-            frappe.msgprint("Saved successfully");
-            dialog.hide();
+            frm.refresh_field('custom_container_qty_details');
+            frm.save().then(() => {
+                frappe.msgprint("Saved successfully");
+                dialog.hide();
 
-            // ✅ optionally auto-submit
-            setTimeout(() => {
-                frm.remove_custom_button('Set Containers Qty');
-                frm.submit();
-            }, 500);
-        });
-    }
+                // Auto-submit
+                setTimeout(() => {
+                    frm.remove_custom_button('Set Containers Qty');
+                    frm.submit();
+                }, 500);
+            });
+        }
     });
 
     function update_total() {
