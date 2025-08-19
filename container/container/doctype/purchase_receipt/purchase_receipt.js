@@ -486,7 +486,7 @@ function show_container_dialog(frm) {
     let item_qty_map = {};
     frm.doc.items.forEach(item => {
         if (item.is_containerized) {
-            item_qty_map[item.item_code] = flt(item.qty);
+            item_qty_map[item.item_code] = flt(item.stock_qty);
         }
     });
 
@@ -496,12 +496,15 @@ function show_container_dialog(frm) {
         let no_of_containers = item.no_of_containers || 0;
         if (no_of_containers <= 0) return;
 
-        let qty_per_container = flt(item.qty) / no_of_containers;
+        let qty_per_container = flt(item.stock_qty) / no_of_containers;
         let uom = item.purchase_uom || item.stock_uom || 'Unit';
 
         let existing = (frm.doc.custom_container_qty_details || []).filter(cd => cd.item_code === item.item_code);
 
-        if (existing.length === no_of_containers) {
+        if (
+            existing.length === no_of_containers &&
+            existing.reduce((t, r) => t + flt(r.qty), 0) === flt(item.stock_qty)
+        ) {
             existing.forEach(row => {
                 container_data.push({
                     sl_no: sl_no++,
@@ -509,7 +512,7 @@ function show_container_dialog(frm) {
                     warehouse: row.warehouse,
                     container_ref: row.container_ref,
                     qty: row.qty,
-                    uom: row.uom || uom,
+                    uom: row.uom,
                     expiry_date: row.expiry_date,
                     updated: row.updated || 0
                 });
