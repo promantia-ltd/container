@@ -125,7 +125,7 @@ def update_container_precision(doc, method):
                 total_primary_qty += primary_qty
 
             # Calculate difference
-            diff = item.qty - total_primary_qty
+            diff = item.stock_qty - total_primary_qty
 
             # Adjust last container if needed
             if abs(diff) > 0 and container_ids:
