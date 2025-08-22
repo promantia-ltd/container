@@ -120,12 +120,9 @@ frappe.ui.form.on('Stock Entry', {
 												let available_qty_use="";
 												let available_qty="";
 												let is_scrap_qty = 0;
-												if (r.message.scrap_qty == 1) {
-													is_scrap_qty = 0.1;
-												}
 												for (let i = 0; i < r.message.target.container_no.length; i++) {
 													let current_available_qty = parseFloat(r.message.target.primary_available_qty[i]);
-													if (current_available_qty > is_scrap_qty) {
+													if (current_available_qty > 0) {
 														container_no += String(r.message.target.container_no[i]) + ",";
 														available_qty += String(r.message.target.primary_available_qty[i]) + ",";
 														available_qty_use += String(r.message.target.primary_available_qty_used[i]) + ",";
@@ -364,7 +361,6 @@ frappe.ui.form.on('Stock Entry', {
 										warehouse_list.push(target_warehouse)
 									}
 								})
-
 							frappe.call({
 									method:"container.container.doctype.stock_entry.stock_entry.get_item_container_no",
 									args:{
