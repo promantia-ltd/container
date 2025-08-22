@@ -259,7 +259,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 				for data in query:
 					if data.parent not in used:
 						if not has_partially_reserved:
-							if flt(data.primary_available_qty, precision) < required_qty and data.primary_available_qty > scrap_qty:
+							if flt(data.primary_available_qty, precision) < required_qty:
 								
 								#here full container qty is used
 								container_no.append(data.parent)
@@ -276,7 +276,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 								break
 
 						else:
-							if flt(data.reserved_qty, precision) < required_qty and flt(data.reserved_qty, precision) > scrap_qty:
+							if flt(data.reserved_qty, precision) < required_qty:
 								container_no.append(data.parent)
 								reserved_qty.append(data.reserved_qty)
 								reserved_qty_used.append(flt(data.reserved_qty, precision))  # container qty used
