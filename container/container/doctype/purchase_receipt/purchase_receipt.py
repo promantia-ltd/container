@@ -64,6 +64,31 @@ def update_container_details_from_pr(doc, method):
 
     for row in doc.custom_container_qty_details:
         item_code = row.item_code
+        qty=row.qty
+
+        secondary_uom = frappe.db.get_value(
+                    "UOM Conversion Detail",
+                    {"parent": row.item_code, "uom_type": "Secondary UOM"},
+                    "uom",
+                )
+        secondary_uom_cf = frappe.db.get_value(
+                    "UOM Conversion Detail",
+                    {"parent": row.item_code, "uom_type": "Secondary UOM"},
+                    "conversion_factor",
+                )
+        primary_uom = frappe.db.get_value(
+                    "UOM Conversion Detail",
+                    {"parent": row.item_code, "uom_type": "Primary UOM"},
+                    "uom",
+                )
+        
+        # if inwarded stock is not in primary UOM handle all the cases
+        if row.uom==primary_uom:
+            qty=row.qty
+        elif row.uom==secondary_uom:
+            qty=row.qty*secondary_uom_cf
+        else:
+            frappe.throw(f"UOM {row.uom} not matching with the primary or secondary UOM of the item {item_code}")
 
         if item_code not in updated_containers_map:
             # Get all containers for the item and PR
@@ -98,9 +123,9 @@ def update_container_details_from_pr(doc, method):
 
         # Update the container with row data
         container_doc = frappe.get_doc("Container", container_to_update)
-        container_doc.primary_available_qty = row.qty
-        container_doc.initial_qty = row.qty
-        container_doc.actual_container_qty = row.qty
+        container_doc.primary_available_qty = qty
+        container_doc.initial_qty = qty
+        container_doc.actual_container_qty = qty
         container_doc.warehouse = row.warehouse
         container_doc.custom_container_reference = row.container_ref
         container_doc.status = "Active"
@@ -163,6 +188,7 @@ def container_creation(self, method):
                     {"parent": item.item_code, "uom_type": "Secondary UOM"},
                     "conversion_factor",
                 )
+                
                 warehouse_temperature = frappe.db.get_value(
                     "Warehouse", item.warehouse, ["temperature", "name"], as_dict=True
                 )
