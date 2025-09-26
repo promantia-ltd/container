@@ -215,7 +215,6 @@ function set_quantity_for_container_nos(items, frm) {
             r.message.forEach((container) => {
                 container_refs[container.name] = container.custom_container_reference || "";
             });
-    
             // Build container data including Container Reference Number
             for (let i = 0; i < container_no_list.length; i++) {
                 container_no_dict_total.push({
@@ -486,7 +485,7 @@ function show_container_dialog(frm) {
     let item_qty_map = {};
     frm.doc.items.forEach(item => {
         if (item.is_containerized) {
-            item_qty_map[item.item_code] = flt(item.stock_qty);
+            item_qty_map[item.item_code] = flt(item.qty);
         }
     });
 
@@ -496,14 +495,13 @@ function show_container_dialog(frm) {
         let no_of_containers = item.no_of_containers || 0;
         if (no_of_containers <= 0) return;
 
-        let qty_per_container = flt(item.stock_qty) / no_of_containers;
-        let uom = item.purchase_uom || item.stock_uom || 'Unit';
+        let qty_per_container = flt(item.qty) / no_of_containers;
+        let uom = item.uom || item.stock_uom || 'Unit';
 
         let existing = (frm.doc.custom_container_qty_details || []).filter(cd => cd.item_code === item.item_code);
 
         if (
-            existing.length === no_of_containers &&
-            existing.reduce((t, r) => t + flt(r.qty), 0) === flt(item.stock_qty)
+            existing.length === no_of_containers 
         ) {
             existing.forEach(row => {
                 container_data.push({
@@ -512,7 +510,7 @@ function show_container_dialog(frm) {
                     warehouse: row.warehouse,
                     container_ref: row.container_ref,
                     qty: row.qty,
-                    uom: row.uom,
+                    uom: row.uom || uom,
                     expiry_date: row.expiry_date,
                     updated: row.updated || 0
                 });
