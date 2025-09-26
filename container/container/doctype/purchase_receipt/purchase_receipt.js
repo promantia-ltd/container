@@ -501,8 +501,7 @@ function show_container_dialog(frm) {
         let existing = (frm.doc.custom_container_qty_details || []).filter(cd => cd.item_code === item.item_code);
 
         if (
-            existing.length === no_of_containers &&
-            existing.reduce((t, r) => t + flt(r.qty), 0) === flt(item.stock_qty)
+            existing.length === no_of_containers 
         ) {
             existing.forEach(row => {
                 container_data.push({
