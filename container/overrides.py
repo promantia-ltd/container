@@ -264,7 +264,7 @@ def set_conversion_factor_precision():
 	# Step 1: Get precision from System Settings
 	precision = frappe.db.get_single_value("System Settings", "conversion_factor_precision")
 	if not precision:
-		frappe.throw("Please set 'Conversion Factor Precision' in System Settings before running this script.")
+		precision=9
 
 	# Step 2: Fetch all float fields with fieldname like 'conversion_factor'
 	fields = frappe.db.get_all(
