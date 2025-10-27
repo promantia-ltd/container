@@ -2,13 +2,13 @@ frappe.ui.form.on("Shipment", {
     refresh(frm) {
         if (!frm.is_new() && frm.doc.docstatus === 0) {
             frm.add_custom_button(__('Fetch Items'), () => {
-                fetch_and_add_items_server_side(frm);
+                fetch_and_add_items(frm);
             });
         }
     }
 });
 
-function fetch_and_add_items_server_side(frm) {
+function fetch_and_add_items(frm) {
     if (!frm.doc.custom_sales_invoice_list || frm.doc.custom_sales_invoice_list.length === 0) {
         frappe.msgprint(__('Please add at least one Sales Invoice before fetching items.'));
         return;
