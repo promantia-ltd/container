@@ -7,7 +7,6 @@ from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
 #For updating entities to the Serial and Batch Bundle entries
 SerialBatchCreation.set_serial_batch_entries = _custom_overrided_logic_override_file.set_serial_batch_entries
-
 app_name = "container"
 app_title = "Container"
 app_publisher = "Mohan"
@@ -18,6 +17,8 @@ app_license = "mit"
 
 _standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_crossed_error
 
+before_migrate = ["container.overrides.add_conversion_factor_precision_field",
+                  "container.overrides.set_conversion_factor_precision"]
 
 # required_apps = []
 
@@ -61,7 +62,10 @@ fixtures = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/container/css/container.css"
-app_include_js = "/assets/container/js/multi_select_dialog.js"
+app_include_js = [
+    "/assets/container/js/multi_select_dialog.js",
+    "/assets/container/js/global_customization.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/container/css/container.css"
@@ -183,7 +187,11 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
+
 doc_events = {
+    "*": {
+        "validate": "container.overrides.auto_round_floats_globally"
+    },
     "Stock Entry": {
         "on_submit": [
             "container.api.on_submit",
@@ -200,7 +208,8 @@ doc_events = {
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
         "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
                       "container.container.doctype.purchase_receipt.purchase_receipt.update_container_details_from_pr",
-                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_precision"],
+                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_precision"
+                      ],
         "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
         # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },
@@ -224,6 +233,7 @@ doc_events = {
             "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
             ]
     },
+    
     # This commented code may require in future, so pls do not remove it.
     # "Job Card": {
     #     "after_insert": "container.container.doctype.job_card.job_card.after_insert"

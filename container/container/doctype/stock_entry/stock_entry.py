@@ -546,7 +546,7 @@ def set_containers_status(doc, method):
 								container_doc.add_comment('Comment', f"Used qty: {qty_to_use} for Stock Entry: {doc.name}")
 
 								required_qty -= qty_to_use
-								frappe.db.commit()
+								
 
 								if required_qty <= 0.0001:
 									break
@@ -568,13 +568,14 @@ def set_containers_status(doc, method):
 								if flt(container_doc.actual_container_qty, precision) <= scrap_buffer:
 									container_doc.db_set("status", "Active")
 									container_doc.db_set("consumption_status", "Consumed")
+			
 
 				except Exception as e:
 					frappe.db.rollback()
 					frappe.log_error("An error occurred: {}".format(str(e)))
 					frappe.throw("An error occurred while updating containers. For more info, check the Error Log.")
 
-
+			frappe.db.commit()
 
 	if doc.stock_entry_type == "Manufacture" and not doc.system_generated and not doc.work_order:
 		for item in doc.items:
