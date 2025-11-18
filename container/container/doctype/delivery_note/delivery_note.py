@@ -327,15 +327,18 @@ def add_containers_before_save(doc,method):
                     if abs(total_consumed - original_required_qty) <= 0.0001:
                         total_consumed = original_required_qty
 
+                    difference = flt(original_required_qty - total_consumed, 6)
                     if total_consumed < original_required_qty:
-                        frappe.throw(f'Stock is not available for the Item {item.item_code} at the warehouse {warehouse}')
+                        frappe.throw(f'Stock <b>{difference}</b> qty is not available for the Item <b>{item.item_code}</b> 'f'at the warehouse <b>{warehouse}</b>')
                     else:
                         item.container_list = container_list
-        
+
+    except frappe.ValidationError:
+        raise
+
     except Exception as e:
-        frappe.db.rollback()
-        frappe.log_error("An error occurred: {}".format(str(e)))
-        frappe.throw("Something went wrong : "+str(e))   
+        frappe.log_error(f"Unexpected Error: {str(e)}")
+        frappe.throw(f"Unexpected Error: {str(e)}")
         
         
 def update_dn_details_container(self, method):
