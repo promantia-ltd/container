@@ -86,6 +86,7 @@ def on_submit(doc, method):
                 serial_no.db_set("primary_available_qty", sn.stock_qty)
                 serial_no.db_set("secondary_available_qty", sn.secondary_qty)
                 serial_no.db_set("initial_qty", sn.stock_qty)
+                serial_no.db_set("actual_container_qty", sn.stock_qty)
             add_new_sl_count = 0
             for sn in new_containers:
                 container_doc = frappe.get_doc(
