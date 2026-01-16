@@ -104,6 +104,7 @@ def on_submit(doc, method):
                         primary_available_qty=sn.stock_qty,
                         secondary_uom=sn.secondary_uom,
                         secondary_available_qty=sn.secondary_qty,
+                        actual_container_qty=sn.stock_qty,
                         status="Active",
                         uom=sn.stock_uom,
                     )
