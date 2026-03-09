@@ -5,8 +5,15 @@ from container.api import StatusUpdaterCustom as _custom_updator
 from container import overrides as _custom_overrided_logic_override_file
 from erpnext.stock.serial_batch_bundle import SerialBatchCreation
 
+import erpnext.stock.doctype.purchase_receipt.purchase_receipt as pr_module
+from container.container.doctype.purchase_receipt.purchase_receipt import get_item_account_wise_additional_cost as custom_get_item_account_wise_additional_cost
+
 #For updating entities to the Serial and Batch Bundle entries
 SerialBatchCreation.set_serial_batch_entries = _custom_overrided_logic_override_file.set_serial_batch_entries
+
+# Properly override the function by patching the module
+pr_module.get_item_account_wise_additional_cost = custom_get_item_account_wise_additional_cost
+
 app_name = "container"
 app_title = "Container"
 app_publisher = "Mohan"

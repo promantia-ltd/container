@@ -701,3 +701,68 @@ def save_container_reference_number(quantity, docstatus):
         frappe.db.rollback()
         frappe.log_error(f"Error saving container reference number and quantity: {str(e)}")
         frappe.throw(f"Error saving container reference number and quantity: {str(e)}")
+
+
+def get_item_account_wise_additional_cost(purchase_document):
+	landed_cost_vouchers = frappe.get_all(
+		"Landed Cost Purchase Receipt",
+		fields=["parent"],
+		filters={"receipt_document": purchase_document, "docstatus": 1},
+	)
+
+	if not landed_cost_vouchers:
+		return
+
+	item_account_wise_cost = {}
+
+	for lcv in landed_cost_vouchers:
+		landed_cost_voucher_doc = frappe.get_doc("Landed Cost Voucher", lcv.parent)
+
+		based_on_field = None
+		# Use amount field for total item cost for manually cost distributed LCVs
+		if landed_cost_voucher_doc.distribute_charges_based_on != "Distribute Manually":
+			based_on_field = frappe.scrub(landed_cost_voucher_doc.distribute_charges_based_on)
+
+		total_item_cost = 0
+
+		if based_on_field:
+			for item in landed_cost_voucher_doc.items:
+				total_item_cost += item.get(based_on_field)
+
+		# Calculate total taxes for proportional distribution in manual mode
+		total_taxes = sum(flt(account.base_amount) for account in landed_cost_voucher_doc.taxes)
+
+		for item in landed_cost_voucher_doc.items:
+			if item.receipt_document == purchase_document:
+				for account in landed_cost_voucher_doc.taxes:
+					exchange_rate = account.exchange_rate or 1
+					item_account_wise_cost.setdefault((item.item_code, item.purchase_receipt_item), {})
+					item_account_wise_cost[(item.item_code, item.purchase_receipt_item)].setdefault(
+						account.expense_account, {"amount": 0.0, "base_amount": 0.0}
+					)
+
+					item_row = item_account_wise_cost[(item.item_code, item.purchase_receipt_item)][
+						account.expense_account
+					]
+
+					if total_item_cost > 0:
+						item_row["amount"] += account.amount * item.get(based_on_field) / total_item_cost
+
+						item_row["base_amount"] += (
+							account.base_amount * item.get(based_on_field) / total_item_cost
+						)
+					else:
+						# Fix: Distribute applicable_charges proportionally across tax accounts
+						# based on each tax account's proportion of total taxes
+						if total_taxes > 0:
+							tax_proportion = account.base_amount / total_taxes
+							item_row["amount"] += (item.applicable_charges * tax_proportion) / exchange_rate
+							item_row["base_amount"] += item.applicable_charges * tax_proportion
+						else:
+							# Fallback: distribute equally if no taxes
+							num_taxes = len(landed_cost_voucher_doc.taxes)
+							if num_taxes > 0:
+								item_row["amount"] += (item.applicable_charges / num_taxes) / exchange_rate
+								item_row["base_amount"] += item.applicable_charges / num_taxes
+
+	return item_account_wise_cost
