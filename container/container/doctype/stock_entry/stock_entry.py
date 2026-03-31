@@ -860,9 +860,16 @@ def get_uom_conversion(item):
 @frappe.whitelist()
 def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item=None):
 	operation_list=frappe.db.get_all("Work Order Operation",filters={'parenttype':'Work Order','parent':work_order,'operation':operation},fields={'workstation'})
+	if not operation_list:
+		return wip_warehouse
+
 	converted=json.loads(warehouse_list)
-	input_sources=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':operation_list[0]['workstation'],'w_name':['not in',converted]},fields={'w_name'},order_by="idx")
-	workstation=frappe.db.get_value("Workstation",operation_list[0]['workstation'],"input_source_enabled")
+	workstation_name = operation_list[0].get('workstation')
+	if not workstation_name:
+		return wip_warehouse
+
+	input_sources=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':workstation_name,'w_name':['not in',converted]},fields={'w_name'},order_by="idx")
+	workstation=frappe.db.get_value("Workstation",workstation_name,"input_source_enabled")
 	item_doc=frappe.get_doc("Item",item)
 	if workstation and item_doc.machine_loaded=="Machine Loaded Container":
 		if input_sources!=[]:
