@@ -212,6 +212,7 @@ doc_events = {
         ],
     },
     "Purchase Receipt": {
+        "validate": "container.container.doctype.purchase_receipt.purchase_receipt.validate",
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
         "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
                       "container.container.doctype.purchase_receipt.purchase_receipt.update_container_details_from_pr",

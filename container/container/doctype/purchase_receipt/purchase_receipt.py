@@ -27,6 +27,18 @@ def delete_entities(self):
 
     frappe.db.commit()  # Ensure rollback changes are committed
 
+def validate(self, method):
+    """Validate Purchase Receipt before save"""
+    validate_conversion_factor_not_zero(self)
+
+def validate_conversion_factor_not_zero(self):
+    """Validate that conversion factor is not zero for any item"""
+    for item in self.get("items"):
+        if item.conversion_factor is not None and flt(item.conversion_factor) == 0:
+            frappe.throw(
+                _("Conversion Factor cannot be zero for Item {0} in row {1}").format(item.item_code, item.idx)
+            )
+
 def on_submit(self, method):
     try:
         for item in self.get("items"):
