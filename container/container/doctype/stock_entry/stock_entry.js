@@ -1,466 +1,842 @@
 frappe.ui.form.on('Stock Entry', {
-    onload:function(frm){
-		if (frm.is_new() && frm.doc.amended_from){
+	onload: function(frm) {
+		if (frm.is_new() && frm.doc.amended_from) {
 			frm.clear_table('reserved_items');
 		}
-        let finished_item=""
-		if(frm.doc.__islocal==1){
-		frappe.db.get_value("Work Order",frm.doc.work_order,["source_warehouse","wip_warehouse"],(w)=>{
-			if(frm.doc.docstatus==0){
-				frm.set_value("from_warehouse",w.source_warehouse)
-			}
-		if(frm.doc.stock_entry_type=="Material Transfer for Manufacture"){
-		const container_used=[];
-		const item_list=[];
-			if(frm.doc.bom_no){
-				frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
-					frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
-					cur_frm.clear_table("items");	
-					let target_warehouse=""
-					const item_operation_list=[]					
-					var total_qty=0;
-					var no_of_inputs=1;
-					let warehouse_list=[]
-					let machine_loaded=true
-					let tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
-					let item_sequence=1
-						$.each(tabletransfer.items, function(index, detail){
-							if(item_sequence==detail.custom_sequence_order){
-							frappe.call({
-								method:"container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping",
-								async:false,
-								callback: function(r){
 
-							
-							no_of_inputs=detail.no_of_inputs
-							machine_loaded=true
-							total_qty=detail.stock_qty
+		let finished_item = '';
 
-								frappe.db.get_value("Item",detail.item_code,"machine_loaded",(ml)=>{
-									if(ml.machine_loaded=="Not Machine Loaded Container"){
-										machine_loaded=false
-										let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
-										total_qty=detail.stock_qty
-										//get the total qty in the BOM for a combination of Item code and Operation
-										$.each(tabletransferinside.items, function(index2, detail2){
-											if(detail.idx!=detail2.idx){
-											if(detail2.item_code==detail.item_code){
-												total_qty=total_qty+detail2.stock_qty
-											}
-											}	
-										})
-										no_of_inputs=1
-										
-									}
-	
-								var comb_exists=false
-						//check if the item code and operation combination exists
-						for (let op = 0; op < item_operation_list.length; op++) {
-							if(item_operation_list[op][0]==detail.item_code)
-							{
-								comb_exists=true
-							}
-							
-						}
-						//check if the item code and operation combination exists then skip the item line creation in SE item table	
-						if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
-							if(ml.machine_loaded=="Machine Loaded Container"){
-								total_qty=detail.stock_qty
-								no_of_inputs=detail.no_of_inputs
-							}
-							for (let i=0;i<no_of_inputs;i++){
-								no_of_inputs=detail.no_of_inputs
-							target_warehouse=""
-							frappe.call({
-								method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
-								args:{
-									operation:detail.operation,
-									work_order:frm.doc.work_order,
-									warehouse_list:warehouse_list,
-									wip_warehouse:w.wip_warehouse,
-									item:detail.item_code
-								},
-								async:false,
-								callback: function(r){
-									target_warehouse=r.message
-									warehouse_list.push(target_warehouse)
-								}
-							})
-						frappe.call({
-								method:"container.container.doctype.stock_entry.stock_entry.get_container_no",
-								args:{
-									item:detail.item_code,
-									warehouse:w.source_warehouse,
-									t_warehouse:target_warehouse,
-									qty:((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs,	
-									container_used:container_used,
-									uom:detail.uom,
-									work_order:frm.doc.work_order
-								},
-								async:false,
-								callback: function(r){
-									if(r.message.target || r.message.source){
-										if (r.message.target && r.message.source && r.message.partially_reserved){
-											// this partially reserved target
-											if (r.message.target.container_no){
-												container_used.push(r.message.target.container_no)
-												let child=frm.add_child("reserved_items");
-												child.s_warehouse=r.message.target.s_warehouse;
-												child.t_warehouse=r.message.target.t_warehouse;
-												child.item_code=detail.item_code;
-												child.item_name=detail.item_name;
-												child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
-												child.basic_rate=detail.rate;
-												child.uom=detail.uom;
-												child.stock_uom=detail.stock_uom;
-												child.conversion_factor=detail.conversion_factor;
-												child.transfer_qty=total_qty;
-												let container_no="";
-												let qty=0;
-												let available_qty_use="";
-												let available_qty="";
-												let is_scrap_qty = 0;
-												for (let i = 0; i < r.message.target.container_no.length; i++) {
-													let current_available_qty = parseFloat(r.message.target.primary_available_qty[i]);
-													if (current_available_qty > 0) {
-														container_no += String(r.message.target.container_no[i]) + ",";
-														available_qty += String(r.message.target.primary_available_qty[i]) + ",";
-														available_qty_use += String(r.message.target.primary_available_qty_used[i]) + ",";
+		if (frm.doc.__islocal == 1) {
+			frappe.db.get_value(
+				'Work Order',
+				frm.doc.work_order,
+				['source_warehouse', 'wip_warehouse'],
+				(w) => {
+					if (frm.doc.docstatus == 0) {
+						frm.set_value('from_warehouse', w.source_warehouse);
+					}
 
-														if (r.message.scrap_qty == 1) {
-															qty += r.message.target.qty_in_bom_uom[i] + (0.1 / child.conversion_factor);
-														} else {
-															qty += r.message.target.qty_in_bom_uom[i];
+					if (frm.doc.stock_entry_type == 'Material Transfer for Manufacture') {
+						const container_used = [];
+						const item_list = [];
+
+						if (frm.doc.bom_no) {
+							frappe.db.get_value('BOM', frm.doc.bom_no, 'quantity', (c) => {
+								frappe.model.with_doc('BOM', frm.doc.bom_no, function() {
+									cur_frm.clear_table('items');
+									frm.refresh_field('items');
+
+									let target_warehouse = '';
+									const item_operation_list = [];
+									var total_qty = 0;
+									var no_of_inputs = 1;
+									let warehouse_list = [];
+									let machine_loaded = true;
+									let tabletransfer = frappe.model.get_doc('BOM', frm.doc.bom_no);
+									let item_sequence = 1;
+
+									$.each(tabletransfer.items, function(index, detail) {
+										if (item_sequence == detail.custom_sequence_order) {
+											frappe.call({
+												method:
+													'container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping',
+												async: false,
+												callback: function(r) {
+													no_of_inputs = detail.no_of_inputs;
+													machine_loaded = true;
+													total_qty = detail.stock_qty;
+
+													frappe.db.get_value(
+														'Item',
+														detail.item_code,
+														'machine_loaded',
+														(ml) => {
+															if (ml.machine_loaded == 'Not Machine Loaded Container') {
+																machine_loaded = false;
+																	let tabletransferinside = frappe.model.get_doc(
+																		'BOM',
+																		frm.doc.bom_no
+																	);
+																total_qty = detail.stock_qty;
+
+																//get the total qty in the BOM for a combination of Item code and Operation
+																$.each(
+																	tabletransferinside.items,
+																	function(index2, detail2) {
+																		if (detail.idx != detail2.idx) {
+																			if (detail2.item_code == detail.item_code) {
+																				total_qty =
+																					total_qty + detail2.stock_qty;
+																			}
+																		}
+																	}
+																);
+																no_of_inputs = 1;
+															}
+
+															var comb_exists = false;
+
+															//check if the item code and operation combination exists
+															for (
+																let op = 0;
+																op < item_operation_list.length;
+																op++
+															) {
+																if (item_operation_list[op][0] == detail.item_code) {
+																	comb_exists = true;
+																}
+															}
+
+															//check if the item code and operation combination exists then skip the item line creation in SE item table
+															if (
+																comb_exists == false ||
+																ml.machine_loaded == 'Machine Loaded Container'
+															) {
+																if (
+																	ml.machine_loaded == 'Machine Loaded Container'
+																) {
+																	total_qty = detail.stock_qty;
+																	no_of_inputs = detail.no_of_inputs;
+																}
+
+																for (let i = 0; i < no_of_inputs; i++) {
+																	no_of_inputs = detail.no_of_inputs;
+																	target_warehouse = '';
+
+																	frappe.call({
+																		method:
+																			'container.container.doctype.stock_entry.stock_entry.get_target_warehouses',
+																		args: {
+																			operation: detail.operation,
+																			work_order: frm.doc.work_order,
+																			warehouse_list: warehouse_list,
+																			wip_warehouse: w.wip_warehouse,
+																			item: detail.item_code
+																		},
+																		async: false,
+																		callback: function(r) {
+																			target_warehouse = r.message;
+																			warehouse_list.push(target_warehouse);
+																		}
+																	});
+
+																	frappe.call({
+																		method:
+																			'container.container.doctype.stock_entry.stock_entry.get_container_no',
+																		args: {
+																			item: detail.item_code,
+																			warehouse: w.source_warehouse,
+																			t_warehouse: target_warehouse,
+																			qty:
+																				((total_qty / c.quantity) *
+																					frm.doc.fg_completed_qty) /
+																				no_of_inputs,
+																			container_used: container_used,
+																			uom: detail.uom,
+																			work_order: frm.doc.work_order
+																		},
+																		async: false,
+																		callback: function(r) {
+																			if (r.message.target || r.message.source) {
+																				if (
+																					r.message.target &&
+																					r.message.source &&
+																					r.message.partially_reserved
+																				) {
+																					// this partially reserved target
+																					if (r.message.target.container_no) {
+																							container_used.push(
+																								r.message.target.container_no
+																							);
+																							let child = frm.add_child(
+																								'reserved_items'
+																							);
+																						child.s_warehouse =
+																							r.message.target.s_warehouse;
+																						child.t_warehouse =
+																							r.message.target.t_warehouse;
+																						child.item_code =
+																							detail.item_code;
+																						child.item_name =
+																							detail.item_name;
+																						child.required_qty =
+																							(total_qty / c.quantity) *
+																							frm.doc.fg_completed_qty /
+																							no_of_inputs;
+																						child.basic_rate = detail.rate;
+																						child.uom = detail.uom;
+																						child.stock_uom =
+																							detail.stock_uom;
+																						child.conversion_factor =
+																							detail.conversion_factor;
+																						child.transfer_qty = total_qty;
+																						let container_no = '';
+																						let qty = 0;
+																						let available_qty_use = '';
+																						let available_qty = '';
+																						let is_scrap_qty = 0;
+
+																						for (
+																							let i = 0;
+																							i <
+																							r.message.target.container_no.length;
+																							i++
+																						) {
+																							let current_available_qty =
+																								parseFloat(
+																									r.message.target
+																										.primary_available_qty[
+																										i
+																									]
+																								);
+																							if (
+																								current_available_qty > 0
+																							) {
+																								container_no +=
+																									String(
+																										r.message.target
+																											.container_no[i]
+																									) + ',';
+																								available_qty +=
+																									String(
+																										r.message.target
+																											.primary_available_qty[
+																											i
+																										]
+																									) + ',';
+																								available_qty_use +=
+																									String(
+																										r.message.target
+																											.primary_available_qty_used[
+																											i
+																										]
+																									) + ',';
+
+																								if (
+																									r.message.scrap_qty ==
+																									1
+																								) {
+																									qty +=
+																										r.message.target
+																											.qty_in_bom_uom[
+																											i
+																										] +
+																										0.1 /
+																											child.conversion_factor;
+																								} else {
+																									qty +=
+																										r.message.target
+																											.qty_in_bom_uom[
+																											i
+																										];
+																								}
+																							}
+																						}
+																						child.containers = container_no;
+																						child.qty = qty;
+																						child.available_qty =
+																							available_qty;
+																						child.remaining_qty =
+																							r.message.target.remaining_qty;
+																						child.available_qty_use =
+																							available_qty_use;
+																					}
+
+																					// this partially reserved source
+																					if (r.message.source.container_no) {
+																						container_used.push(
+																							r.message.source.container_no
+																						);
+																						let child =
+																							frm.add_child('items');
+																						child.s_warehouse =
+																							r.message.source.s_warehouse;
+																						child.t_warehouse =
+																							r.message.source.t_warehouse;
+																						child.item_code =
+																							detail.item_code;
+																						child.item_name =
+																							detail.item_name;
+																						child.basic_rate = detail.rate;
+																						child.uom = detail.uom;
+																						child.stock_uom =
+																							detail.stock_uom;
+																						child.conversion_factor =
+																							detail.conversion_factor;
+																						child.transfer_qty = total_qty;
+																						let container_no = '';
+																						let qty = 0;
+																						let available_qty_use = '';
+																						let available_qty = '';
+																						let required_qty = 0;
+
+																						for (
+																							let i = 0;
+																							i <
+																							r.message.source.container_no.length;
+																							i++
+																						) {
+																							container_no =
+																								container_no +
+																								String(
+																									r.message.source
+																										.container_no[i]
+																								) +
+																								',';
+																							available_qty =
+																								available_qty +
+																								String(
+																									r.message.source
+																										.primary_available_qty[
+																										i
+																									]
+																								) +
+																								',';
+																							available_qty_use =
+																								available_qty_use +
+																								String(
+																									r.message.source
+																										.primary_available_qty_used[
+																										i
+																									]
+																								) +
+																								',';
+																							if (
+																								r.message.scrap_qty == 1
+																							) {
+																								qty =
+																									qty +
+																									r.message.source
+																										.qty_in_bom_uom[
+																										i
+																									] +
+																									0.1 /
+																										child.conversion_factor;
+																							} else {
+																								qty =
+																									qty +
+																									r.message.source
+																										.qty_in_bom_uom[
+																										i
+																									];
+																							}
+																							required_qty =
+																								required_qty +
+																								r.message.source
+																									.primary_available_qty_used[
+																									i
+																								];
+																						}
+																						child.containers = container_no;
+																						child.qty = qty;
+																						child.available_qty =
+																							available_qty;
+																						child.remaining_qty =
+																							r.message.source.remaining_qty;
+																						child.available_qty_use =
+																							available_qty_use;
+																						child.required_qty =
+																							required_qty;
+																					}
+																				}
+
+																				// this is completely reserved at target
+																				if (
+																					r.message.target &&
+																					r.message.complete_reserved_at_target ==
+																						1
+																				) {
+																					container_used.push(
+																						r.message.target.container_no
+																					);
+																					let child = frm.add_child('items');
+																					child.s_warehouse =
+																						r.message.target.s_warehouse;
+																					child.t_warehouse =
+																						r.message.target.t_warehouse;
+																					child.item_code = detail.item_code;
+																					child.item_name = detail.item_name;
+																					child.required_qty =
+																						(total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty /
+																						no_of_inputs;
+																					child.basic_rate = detail.rate;
+																					child.uom = detail.uom;
+																					child.stock_uom =
+																						detail.stock_uom;
+																					child.conversion_factor =
+																						detail.conversion_factor;
+																					child.transfer_qty = total_qty;
+																					let container_no = '';
+																					let qty = 0;
+																					let available_qty_use = '';
+																					let available_qty = '';
+
+																					for (
+																						let i = 0;
+																						i <
+																						r.message.target.container_no.length;
+																						i++
+																					) {
+																						container_no =
+																							container_no +
+																							String(
+																								r.message.target
+																									.container_no[i]
+																							) +
+																							',';
+																						available_qty =
+																							available_qty +
+																							String(
+																								r.message.target
+																									.primary_available_qty[
+																									i
+																								]
+																							) +
+																							',';
+																						available_qty_use =
+																							available_qty_use +
+																							String(
+																								r.message.target
+																									.primary_available_qty_used[
+																									i
+																								]
+																							) +
+																							',';
+																						if (r.message.scrap_qty == 1) {
+																							qty =
+																								qty +
+																								r.message.target
+																									.qty_in_bom_uom[i] +
+																								0.1 /
+																									child.conversion_factor;
+																						} else {
+																							qty =
+																								qty +
+																								r.message.target
+																									.qty_in_bom_uom[i];
+																						}
+																					}
+																					child.containers = container_no;
+																					child.qty = qty;
+																					child.available_qty =
+																						available_qty;
+																					child.remaining_qty =
+																						r.message.target.remaining_qty;
+																					child.available_qty_use =
+																						available_qty_use;
+																				}
+
+																				// this completly reserved at source
+																				else if (
+																					r.message.source &&
+																					r.message.complete_reserved_at_target ==
+																						0 &&
+																					!(r.message.target)
+																				) {
+																					container_used.push(
+																						r.message.source.container_no
+																					);
+																					let child = frm.add_child('items');
+																					child.s_warehouse =
+																						r.message.source.s_warehouse;
+																					child.t_warehouse =
+																						r.message.source.t_warehouse;
+																					child.item_code = detail.item_code;
+																					child.item_name = detail.item_name;
+																					child.required_qty =
+																						(total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty /
+																						no_of_inputs;
+																					child.basic_rate = detail.rate;
+																					child.uom = detail.uom;
+																					child.stock_uom =
+																						detail.stock_uom;
+																					child.conversion_factor =
+																						detail.conversion_factor;
+																					child.transfer_qty = total_qty;
+																					let container_no = '';
+																					let qty = 0;
+																					let available_qty_use = '';
+																					let available_qty = '';
+
+																					for (
+																						let i = 0;
+																						i <
+																						r.message.source.container_no.length;
+																						i++
+																					) {
+																						container_no =
+																							container_no +
+																							String(
+																								r.message.source
+																									.container_no[i]
+																							) +
+																							',';
+																						available_qty =
+																							available_qty +
+																							String(
+																								r.message.source
+																									.primary_available_qty[
+																									i
+																								]
+																							) +
+																							',';
+																						available_qty_use =
+																							available_qty_use +
+																							String(
+																								r.message.source
+																									.primary_available_qty_used[
+																									i
+																								]
+																							) +
+																							',';
+																						if (r.message.scrap_qty == 1) {
+																							qty =
+																								qty +
+																								r.message.source
+																									.qty_in_bom_uom[i] +
+																								0.1 /
+																									child.conversion_factor;
+																						} else {
+																							qty =
+																								qty +
+																								r.message.source
+																									.qty_in_bom_uom[i];
+																						}
+																					}
+																					child.containers = container_no;
+																					child.qty = qty;
+																					child.available_qty =
+																						available_qty;
+																					child.remaining_qty =
+																						r.message.source.remaining_qty;
+																					child.available_qty_use =
+																						available_qty_use;
+																				}
+
+																				frm.refresh_field('reserved_items');
+																			} else {
+																				var child = frm.add_child('items');
+																				child.s_warehouse = frm.doc.from_warehouse;
+																				child.t_warehouse = target_warehouse;
+																				child.item_code = detail.item_code;
+																				child.item_name = detail.item_name;
+																				child.required_qty =
+																					((total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty) /
+																					no_of_inputs;
+																				child.qty =
+																					((total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty) /
+																					no_of_inputs;
+																				child.basic_rate = detail.rate;
+																				child.uom = detail.stock_uom;
+																				child.conversion_factor =
+																					detail.conversion_factor;
+																				child.transfer_qty = total_qty;
+																			}
+																		}
+																	});
+																}
+															}
+
+															//check if the item code and operation combination does not exist then append it in the array
+															if (comb_exists == false) {
+																item_operation_list.push([detail.item_code]);
+															}
 														}
-													}
-												}
-												child.containers=container_no
-												child.qty=qty
-												child.available_qty=available_qty
-												child.remaining_qty=r.message.target.remaining_qty
-												child.available_qty_use=available_qty_use
-											}
+													);
 
-											// this partially reserved source
-											if (r.message.source.container_no){
-												container_used.push(r.message.source.container_no)
-												let child=frm.add_child("items");
-												child.s_warehouse=r.message.source.s_warehouse;
-												child.t_warehouse=r.message.source.t_warehouse;
-												child.item_code=detail.item_code;
-												child.item_name=detail.item_name;
-												child.basic_rate=detail.rate;
-												child.uom=detail.uom;
-												child.stock_uom=detail.stock_uom;
-												child.conversion_factor=detail.conversion_factor;
-												child.transfer_qty=total_qty;
-												let container_no="";
-												let qty=0;
-												let available_qty_use="";
-												let available_qty="";
-												let required_qty = 0;
-												for (let i = 0; i < r.message.source.container_no.length; i++) {
-													container_no=container_no+String(r.message.source.container_no[i])+",";
-													available_qty=available_qty+String(r.message.source.primary_available_qty[i])+",";
-													available_qty_use=available_qty_use+String(r.message.source.primary_available_qty_used[i])+",";
-													if(r.message.scrap_qty==1){qty=qty + r.message.source.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
-											else{qty=qty + r.message.source.qty_in_bom_uom[i]}
-													required_qty = required_qty + r.message.source.primary_available_qty_used[i]
+													item_sequence = item_sequence + 1;
 												}
-												child.containers=container_no;
-												child.qty=qty;
-												child.available_qty=available_qty;
-												child.remaining_qty=r.message.source.remaining_qty;
-												child.available_qty_use=available_qty_use;
-												child.required_qty = required_qty;
-
-												}
+											});
+										} else {
+											frappe.throw(
+												'Incorrect Sequence. Please reload Wo and try again'
+											);
 										}
-									// this is completely reserved at target
-									if(r.message.target && r.message.complete_reserved_at_target == 1){
-										container_used.push(r.message.target.container_no)
-										let child=frm.add_child("items");
-										child.s_warehouse=r.message.target.s_warehouse;
-										child.t_warehouse=r.message.target.t_warehouse;
-										child.item_code=detail.item_code;
-										child.item_name=detail.item_name;
-										child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
-										child.basic_rate=detail.rate;
-										child.uom=detail.uom;
-										child.stock_uom=detail.stock_uom;
-										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=total_qty;
-										let container_no="";
-										let qty=0;
-										let available_qty_use="";
-										let available_qty="";
-										for (let i = 0; i < r.message.target.container_no.length; i++) {
-											container_no=container_no+String(r.message.target.container_no[i])+","
-											available_qty=available_qty+String(r.message.target.primary_available_qty[i])+","
-											available_qty_use=available_qty_use+String(r.message.target.primary_available_qty_used[i])+","
-											if(r.message.scrap_qty==1){qty=qty + r.message.target.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
-											else{qty=qty + r.message.target.qty_in_bom_uom[i]}
-										}
-										child.containers=container_no
-										child.qty=qty
-										child.available_qty=available_qty
-										child.remaining_qty=r.message.target.remaining_qty
-										child.available_qty_use=available_qty_use
-									}
-									// this completly reserved at source
-									else if(r.message.source && r.message.complete_reserved_at_target == 0 && !(r.message.target)) {
-										container_used.push(r.message.source.container_no)
-										let child=frm.add_child("items");
-										child.s_warehouse=r.message.source.s_warehouse;
-										child.t_warehouse=r.message.source.t_warehouse;
-										child.item_code=detail.item_code;
-										child.item_name=detail.item_name;
-										child.required_qty=(total_qty/c.quantity)*frm.doc.fg_completed_qty/no_of_inputs;
-										child.basic_rate=detail.rate;
-										child.uom=detail.uom;
-										child.stock_uom=detail.stock_uom;
-										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=total_qty;
-										let container_no="";
-										let qty=0;
-										let available_qty_use="";
-										let available_qty="";
-										for (let i = 0; i < r.message.source.container_no.length; i++) {
-											container_no=container_no+String(r.message.source.container_no[i])+","
-											available_qty=available_qty+String(r.message.source.primary_available_qty[i])+","
-											available_qty_use=available_qty_use+String(r.message.source.primary_available_qty_used[i])+","
-											if(r.message.scrap_qty==1){qty=qty + r.message.source.qty_in_bom_uom[i]+(0.1/child.conversion_factor)}
-											else{qty=qty + r.message.source.qty_in_bom_uom[i]}
-											
-										}
-										child.containers=container_no
-										child.qty=qty
-										child.available_qty=available_qty
-										child.remaining_qty=r.message.source.remaining_qty
-										child.available_qty_use=available_qty_use
-									}
-									
-									frm.refresh_field("reserved_items")
-									}
-									else{
-										var child=frm.add_child("items");
-										child.s_warehouse=frm.doc.from_warehouse;
-										child.t_warehouse=target_warehouse;
-										child.item_code=detail.item_code;
-										child.item_name=detail.item_name;
-										child.required_qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
-										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
-										child.basic_rate=detail.rate;
-										child.uom=detail.stock_uom;
-										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=total_qty;
-									}
+									}); // end of for loop of items table
+									frm.refresh_field('items');
+								});
+							});
+								}
 							}
+						});
+		}
+
+		frappe.db.get_value(
+			'Work Order',
+			frm.doc.work_order,
+			['source_warehouse', 'wip_warehouse'],
+			(w) => {
+				if (frm.doc.stock_entry_type == 'Manufacture') {
+					var container_used = [];
+
+					if (frm.doc.__islocal == 1) {
+						if (frm.doc.bom_no) {
+							frappe.db.get_value('BOM', frm.doc.bom_no, 'quantity', (c) => {
+								frappe.model.with_doc('BOM', frm.doc.bom_no, function() {
+									$.each(frm.doc.items, function(idx, item) {
+										if (item.is_finished_item == 1) {
+											finished_item = item;
+										}
+									});
+
+									cur_frm.clear_table('items');
+									frm.refresh_field('items');
+									let warehouse_list = [];
+									let target_warehouse = '';
+									const item_operation_list = [];
+									var total_qty = 0;
+									var no_of_inputs = 1;
+									let machine_loaded = true;
+									let item_sequence = 1;
+									var tabletransfer = frappe.model.get_doc('BOM', frm.doc.bom_no);
+
+									$.each(tabletransfer.items, function(index, detail) {
+										if (item_sequence == detail.custom_sequence_order) {
+											frappe.call({
+												method:
+													'container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping',
+												async: false,
+												callback: function(r) {
+													no_of_inputs = detail.no_of_inputs;
+													machine_loaded = true;
+													total_qty = detail.stock_qty;
+
+													frappe.db.get_value(
+														'Item',
+														detail.item_code,
+														'machine_loaded',
+														(ml) => {
+															if (ml.machine_loaded == 'Not Machine Loaded Container') {
+																machine_loaded = false;
+																let tabletransferinside = frappe.model.get_doc(
+																	'BOM',
+																	frm.doc.bom_no
+																);
+																total_qty = detail.stock_qty;
+
+																//get the total qty in the BOM for a combination of Item code and Operation
+																$.each(
+																	tabletransferinside.items,
+																	function(index2, detail2) {
+																		if (detail.idx != detail2.idx) {
+																			if (detail2.item_code == detail.item_code) {
+																				total_qty =
+																					total_qty + detail2.stock_qty;
+																			}
+																		}
+																	}
+																);
+																no_of_inputs = 1;
+															}
+
+															var comb_exists = false;
+
+															//check if the item code and operation combination exists
+															for (
+																let op = 0;
+																op < item_operation_list.length;
+																op++
+															) {
+																if (item_operation_list[op][0] == detail.item_code) {
+																	comb_exists = true;
+																}
+															}
+
+															//check if the item code and operation combination exists then skip the item line creation in SE item table
+															if (
+																comb_exists == false ||
+																ml.machine_loaded == 'Machine Loaded Container'
+															) {
+																if (
+																	ml.machine_loaded == 'Machine Loaded Container'
+																) {
+																	total_qty = detail.stock_qty;
+																	no_of_inputs = detail.no_of_inputs;
+																}
+
+																for (let i = 0; i < no_of_inputs; i++) {
+																	target_warehouse = '';
+
+																	frappe.call({
+																		method:
+																			'container.container.doctype.stock_entry.stock_entry.get_target_warehouses',
+																		args: {
+																			operation: detail.operation,
+																			work_order: frm.doc.work_order,
+																			warehouse_list: warehouse_list,
+																			wip_warehouse: w.wip_warehouse,
+																			item: detail.item_code
+																		},
+																		async: false,
+																		callback: function(r) {
+																			target_warehouse = r.message;
+																			warehouse_list.push(target_warehouse);
+																		}
+																	});
+
+																	frappe.call({
+																		method:
+																			'container.container.doctype.stock_entry.stock_entry.get_item_container_no',
+																		args: {
+																			item: detail.item_code,
+																			warehouse: target_warehouse,
+																			qty:
+																				((total_qty / c.quantity) *
+																					frm.doc.fg_completed_qty) /
+																				no_of_inputs,
+																			work_order: frm.doc.work_order,
+																			container_used: container_used,
+																			uom: detail.uom
+																		},
+																		async: false,
+																		callback: function(r) {
+																			if (
+																				Array.isArray(r.message) &&
+																				Array.isArray(r.message[0]) &&
+																				r.message[0].length
+																			) {
+																				container_used.push(r.message[0]);
+																				var child = frm.add_child('items');
+																				child.s_warehouse = target_warehouse;
+																				child.item_code = detail.item_code;
+																				child.item_name = detail.item_name;
+																				child.required_qty =
+																					((total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty) /
+																					no_of_inputs;
+																				child.qty =
+																					((total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty) /
+																					no_of_inputs;
+																				child.basic_rate = detail.rate;
+																				child.uom = detail.stock_uom;
+																				child.stock_uom = detail.stock_uom;
+																				child.conversion_factor = 1;
+																				child.transfer_qty = total_qty;
+																				var uom_conversion_factor = 1;
+
+																				frappe.model.with_doc(
+																					'Item',
+																					child.item_code,
+																					function() {
+																						var tabletransfer =
+																							frappe.model.get_doc(
+																								'Item',
+																								child.item_code
+																							);
+																						$.each(
+																							tabletransfer.uoms,
+																							function(index, uom_detail) {
+																								if (
+																									uom_detail.uom != child.uom
+																								) {
+																									uom_conversion_factor =
+																										uom_detail.conversion_factor;
+																									var item_qty =
+																										child.qty /
+																										uom_conversion_factor;
+
+																									let container_no = '';
+																									let available_qty_use = '';
+																									let available_qty = '';
+																									for (
+																										let i = 0;
+																										i <
+																										r.message[0].length;
+																										i++
+																									) {
+																										container_no =
+																											container_no +
+																											String(
+																												r.message[0][i]
+																											) +
+																											',';
+																										available_qty =
+																											available_qty +
+																											String(
+																												r.message[1][i]
+																											) +
+																											',';
+																										available_qty_use =
+																											available_qty_use +
+																											String(
+																												r.message[3][i]
+																											) +
+																											',';
+																									}
+																									child.containers =
+																										container_no;
+																									child.available_qty =
+																										available_qty;
+																									child.remaining_qty =
+																										r.message[2];
+																									child.available_qty_use =
+																										available_qty_use;
+																								}
+																							}
+																						);
+																					}
+																				);
+																			} else {
+																				var child = frm.add_child('items');
+																				child.s_warehouse = target_warehouse;
+																				child.item_code = detail.item_code;
+																				child.item_name = detail.item_name;
+																				child.qty =
+																					((total_qty / c.quantity) *
+																						frm.doc.fg_completed_qty) /
+																					no_of_inputs;
+																				child.basic_rate = detail.rate;
+																				child.uom = detail.stock_uom;
+																				child.conversion_factor =
+																					detail.conversion_factor;
+																				child.transfer_qty = total_qty;
+																			}
+																		}
+																	});
+																} //end no of inputs
+															}
+
+															//check if the item code and operation combination does not exist then append it in the array
+															if (comb_exists == false) {
+																item_operation_list.push([detail.item_code]);
+															}
+														}
+													);
+
+													item_sequence = item_sequence + 1;
+												}
+											});
+										} else {
+											frappe.throw(
+												'Incorrect Sequence. Please reload Wo and try again'
+											);
+										}
+									}); //end of for loop
+
+									var fin_child = frm.add_child('items');
+									fin_child.t_warehouse = finished_item.t_warehouse;
+									fin_child.is_finished_item = finished_item.is_finished_item;
+									fin_child.item_code = finished_item.item_code;
+									fin_child.item_name = finished_item.item_name;
+									fin_child.qty = finished_item.qty;
+									fin_child.basic_rate = finished_item.basic_rate;
+									fin_child.uom = finished_item.uom;
+									fin_child.stock_uom = finished_item.uom;
+									fin_child.conversion_factor = finished_item.conversion_factor;
+									fin_child.transfer_qty = finished_item.transfer_qty;
+									frm.refresh_field('items');
+								});
 							});
 						}
 					}
-					//check if the item code and operation combination does not exist then append it in the array
-					if(comb_exists==false){ 
-							item_operation_list.push([detail.item_code])
-					}
-					
-									
-				})
-				item_sequence=item_sequence+1
-			}
-		})
-							}
-							else{
-								frappe.throw('Incorrect Sequence. Please reload Wo and try again')
-							}
-						
-						}) // end of for loop of items table
-					})
-				})
-			}
-		}
-		})
-		}
-		frappe.db.get_value("Work Order",frm.doc.work_order,["source_warehouse","wip_warehouse"],(w)=>{
-		if(frm.doc.stock_entry_type=="Manufacture"){
-			var container_used=[];
-			if(frm.doc.__islocal==1){
-				if(frm.doc.bom_no){
-					frappe.db.get_value("BOM",frm.doc.bom_no,"quantity",(c)=>{
-						frappe.model.with_doc("BOM", frm.doc.bom_no, function() {
-							
-							$.each(frm.doc.items, function(idx, item){
-								if(item.is_finished_item==1){
-									finished_item=item
-								}
-							})
-
-						cur_frm.clear_table("items");
-						let warehouse_list=[]
-						let target_warehouse=""
-						const item_operation_list=[]					
-						var total_qty=0;
-						var no_of_inputs=1;
-						let machine_loaded=true
-						let item_sequence=1
-						var tabletransfer= frappe.model.get_doc("BOM", frm.doc.bom_no)
-							$.each(tabletransfer.items, function(index, detail){	
-								if(item_sequence==detail.custom_sequence_order){
-									frappe.call({
-										method:"container.container.doctype.stock_entry.stock_entry.support_continuous_item_mapping",
-										async:false,
-										callback: function(r){
-								no_of_inputs=detail.no_of_inputs
-							machine_loaded=true
-							total_qty=detail.stock_qty
-							frappe.db.get_value("Item",detail.item_code,"machine_loaded",(ml)=>{
-								if(ml.machine_loaded=="Not Machine Loaded Container"){
-									machine_loaded=false
-									let tabletransferinside= frappe.model.get_doc("BOM", frm.doc.bom_no)
-									total_qty=detail.stock_qty
-									//get the total qty in the BOM for a combination of Item code and Operation
-									$.each(tabletransferinside.items, function(index2, detail2){
-										if(detail.idx!=detail2.idx){
-										if(detail2.item_code==detail.item_code){
-											total_qty=total_qty+detail2.stock_qty
-										}
-										}	
-									})
-									no_of_inputs=1
-									
-								}
-								var comb_exists=false
-								//check if the item code and operation combination exists
-								for (let op = 0; op < item_operation_list.length; op++) {
-									if(item_operation_list[op][0]==detail.item_code)
-									{
-										comb_exists=true
-									}
-									
-								}
-								//check if the item code and operation combination exists then skip the item line creation in SE item table	
-								if(comb_exists==false || ml.machine_loaded=="Machine Loaded Container"){
-									if(ml.machine_loaded=="Machine Loaded Container"){
-										total_qty=detail.stock_qty
-										no_of_inputs=detail.no_of_inputs
-									}
-								for(let i=0;i<no_of_inputs;i++){
-								target_warehouse=""
-								frappe.call({
-									method:"container.container.doctype.stock_entry.stock_entry.get_target_warehouses",
-									args:{
-										operation:detail.operation,
-										work_order:frm.doc.work_order,
-										warehouse_list:warehouse_list,
-										wip_warehouse:w.wip_warehouse,
-										item:detail.item_code
-									},
-									async:false,
-									callback: function(r){
-										target_warehouse=r.message
-										warehouse_list.push(target_warehouse)
-									}
-								})
-							frappe.call({
-									method:"container.container.doctype.stock_entry.stock_entry.get_item_container_no",
-									args:{
-										item:detail.item_code,
-										warehouse:target_warehouse,
-										qty:((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs,
-										work_order:frm.doc.work_order,
-										container_used:container_used,
-										uom:detail.uom
-									},
-									async:false,
-									callback: function(r){
-										if(r.message!=false){
-										container_used.push(r.message[0])
-										var child=frm.add_child("items");
-										child.s_warehouse=target_warehouse;
-										child.item_code=detail.item_code;
-										child.item_name=detail.item_name;
-										child.required_qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
-										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
-										child.basic_rate=detail.rate;
-										child.uom=detail.stock_uom;
-										child.stock_uom=detail.stock_uom;
-										child.conversion_factor=1;
-										child.transfer_qty=total_qty;
-										var uom_conversion_factor=1
-										frappe.model.with_doc("Item", child.item_code, function() {
-											var tabletransfer= frappe.model.get_doc("Item", child.item_code)
-												$.each(tabletransfer.uoms, function(index, uom_detail){
-													if(uom_detail.uom!=child.uom){
-														uom_conversion_factor=uom_detail.conversion_factor
-										var item_qty=child.qty/uom_conversion_factor;
-										
-									let container_no=""
-									let available_qty_use=""
-									let available_qty=""
-									for (let i = 0; i < r.message[0].length; i++) {
-										container_no=container_no+String(r.message[0][i])+","
-										available_qty=available_qty+String(r.message[1][i])+","
-										available_qty_use=available_qty_use+String(r.message[3][i])+","
-									}
-									child.containers=container_no
-									child.available_qty=available_qty
-									child.remaining_qty=r.message[2]
-									child.available_qty_use=available_qty_use
-									
-													}
-	
-												})
-										})	
-									}
-									else{
-									
-										var child=frm.add_child("items");
-										child.s_warehouse=target_warehouse;
-										child.item_code=detail.item_code;
-										child.item_name=detail.item_name;
-										child.qty=((total_qty/c.quantity)*frm.doc.fg_completed_qty)/no_of_inputs;
-										child.basic_rate=detail.rate;
-										child.uom=detail.stock_uom;
-										child.conversion_factor=detail.conversion_factor;
-										child.transfer_qty=total_qty;
-									}
-								}
-								});
-							}//end no of inputs
-						}
-						//check if the item code and operation combination does not exist then append it in the array
-					if(comb_exists==false){ 
-						item_operation_list.push([detail.item_code])
 				}
-							})
-							item_sequence=item_sequence+1	
-										}
-									})
-						}
-						else{
-							frappe.throw('Incorrect Sequence. Please reload Wo and try again')
-						}
-							})//end of for loop
-							var fin_child=frm.add_child("items");
-							fin_child.t_warehouse=finished_item.t_warehouse;
-							fin_child.is_finished_item=finished_item.is_finished_item;
-							fin_child.item_code=finished_item.item_code;
-							fin_child.item_name=finished_item.item_name;
-							fin_child.qty=finished_item.qty;
-							fin_child.basic_rate=finished_item.basic_rate;
-							fin_child.uom=finished_item.uom;
-							fin_child.stock_uom=finished_item.uom;
-							fin_child.conversion_factor=finished_item.conversion_factor;
-							fin_child.transfer_qty=finished_item.transfer_qty;
-						})
-						// frm.refresh_field("information_of_containers_assigned")
-
-					})
-				}
-			}
-			}
-		});
-    },
+			});
+	},
 	assign_containers:function(frm){
 		//on button click assign the containers
 		let used=[];
