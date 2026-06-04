@@ -236,22 +236,23 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 				query = frappe.db.sql("""
 					SELECT sd.parent, c.primary_available_qty, sd.reserved_qty
 					FROM `tabContainer` c, `tabStock Details` sd
-					WHERE c.name = sd.parent AND c.item_code = %s AND sd.warehouse = %s 
+					WHERE c.name = sd.parent AND c.item_code = %s AND sd.warehouse = %s
 					AND c.status NOT IN ("Inactive", "Expired") AND sd.reserved_qty > 0 AND sd.work_order = %s
 					ORDER BY c.creation
 				""", (item, warehouse, work_order), as_dict=True
 				)
+				print("has_partially_reserved", query)
 
 			else:
 				query = frappe.db.sql("""
 					SELECT sd.parent, c.primary_available_qty, sd.is_reserved
 					FROM `tabContainer` c, `tabStock Details` sd
-					WHERE c.name = sd.parent AND c.item_code = %s AND c.primary_available_qty > 0 AND sd.warehouse = %s 
+					WHERE c.name = sd.parent AND c.item_code = %s AND c.actual_container_qty > 0 AND sd.warehouse = %s
 					AND c.status NOT IN ("Inactive", "Expired") AND sd.is_reserved = 1 AND sd.work_order = %s
 					ORDER BY c.creation
 				""", (item, warehouse, work_order), as_dict=True
 				)
-				
+
 			if query:
 				container_no, reserved_qty, reserved_qty_used = [], [], []
 				required_qty = flt(stock_qty, precision)
@@ -260,7 +261,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 					if data.parent not in used:
 						if not has_partially_reserved:
 							if flt(data.primary_available_qty, precision) < required_qty:
-								
+
 								#here full container qty is used
 								container_no.append(data.parent)
 								required_qty = required_qty - flt(data.primary_available_qty, precision)
@@ -272,7 +273,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(required_qty, precision))
 								remaining_qty = f"{data.parent}:{flt(data.primary_available_qty - required_qty, precision)}"
-					
+
 								break
 
 						else:
@@ -879,6 +880,33 @@ def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item
 			frappe.throw('Unable to assign the Input sources as no sources mentioned at the workstation selected in the Work Order')
 			return False
 	return wip_warehouse
+
+@frappe.whitelist()
+def get_transfer_warehouses_for_item(work_order, item):
+	"""Return warehouses (in container creation order) where containers are reserved
+	for the given work order and item. Used when building the Manufacture SE to pass
+	the correct warehouse to get_item_container_no instead of re-running get_target_warehouses,
+	which may resolve to a different machine than the one used during Material Transfer."""
+	has_partially_reserved = partially_reserved()
+	if has_partially_reserved:
+		rows = frappe.db.sql("""
+			SELECT sd.warehouse, SUM(sd.reserved_qty) as qty
+			FROM `tabContainer` c, `tabStock Details` sd
+			WHERE c.name = sd.parent AND c.item_code = %s
+			AND c.status NOT IN ("Inactive", "Expired") AND sd.reserved_qty > 0 AND sd.work_order = %s
+			GROUP BY sd.warehouse
+			ORDER BY MIN(c.creation)
+		""", (item, work_order), as_dict=True)
+	else:
+		rows = frappe.db.sql("""
+			SELECT sd.warehouse, SUM(c.primary_available_qty) as qty
+			FROM `tabContainer` c, `tabStock Details` sd
+			WHERE c.name = sd.parent AND c.item_code = %s AND c.primary_available_qty > 0
+			AND c.status NOT IN ("Inactive", "Expired") AND sd.is_reserved = 1 AND sd.work_order = %s
+			GROUP BY sd.warehouse
+			ORDER BY MIN(c.creation)
+		""", (item, work_order), as_dict=True)
+	return [{'warehouse': r.warehouse, 'qty': flt(r.qty, 4)} for r in rows]
 
 from container.container.doctype.work_order.work_order import update_reserved_containers,delete_reserved_containers
 
