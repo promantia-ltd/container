@@ -18,6 +18,12 @@ def get_containers(selected_containers, item):
     return containers, total_qty
 
 
+def copy_set_warehouse_to_items(doc, method):
+    if doc.set_warehouse:
+        for item in doc.items:
+            item.warehouse = doc.set_warehouse
+
+
 def container_processing(doc, method):
     if not doc.is_return:
         for item in doc.items:
