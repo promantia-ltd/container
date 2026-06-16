@@ -231,6 +231,7 @@ doc_events = {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
     },
     "Delivery Note": {
+        "before_insert": "container.container.doctype.delivery_note.delivery_note.copy_set_warehouse_to_items",
         "on_submit": ["container.container.doctype.delivery_note.delivery_note.container_processing",
                       "container.container.doctype.delivery_note.delivery_note.update_containers_on_return"],
         "on_cancel": ["container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
