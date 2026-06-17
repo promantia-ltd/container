@@ -703,7 +703,7 @@ frappe.ui.form.on('Stock Entry', {
 																				child.s_warehouse = target_warehouse;
 																				child.item_code = detail.item_code;
 																				child.item_name = detail.item_name;
-																				child.required_qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
+																				child.required_qty = transfer_qty;
 																				child.qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
 																				child.basic_rate = detail.rate;
 																				child.uom = detail.stock_uom;
@@ -728,7 +728,7 @@ frappe.ui.form.on('Stock Entry', {
 																				child.s_warehouse = target_warehouse;
 																				child.item_code = detail.item_code;
 																				child.item_name = detail.item_name;
-																				child.required_qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
+																				child.required_qty = transfer_qty;
 																				child.qty =
 																					((total_qty / c.quantity) *
 																						frm.doc.fg_completed_qty) /
