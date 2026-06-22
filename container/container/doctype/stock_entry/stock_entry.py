@@ -883,7 +883,7 @@ def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item
 
 @frappe.whitelist()
 def get_transfer_warehouses_for_item(work_order, item):
-	"""Return warehouses (in container creation order) where containers are reserved
+	"""Return warehouses (in transfer entry row order) where containers are reserved
 	for the given work order and item. Used when building the Manufacture SE to pass
 	the correct warehouse to get_item_container_no instead of re-running get_target_warehouses,
 	which may resolve to a different machine than the one used during Material Transfer."""
@@ -895,8 +895,17 @@ def get_transfer_warehouses_for_item(work_order, item):
 			WHERE c.name = sd.parent AND c.item_code = %s
 			AND c.status NOT IN ("Inactive", "Expired") AND sd.reserved_qty > 0 AND sd.work_order = %s
 			GROUP BY sd.warehouse
-			ORDER BY MIN(c.creation)
-		""", (item, work_order), as_dict=True)
+			ORDER BY (
+				SELECT MIN(CONCAT(LPAD(UNIX_TIMESTAMP(se2.creation), 12, '0'), LPAD(sed2.idx, 5, '0')))
+				FROM `tabStock Entry Detail` sed2
+				JOIN `tabStock Entry` se2 ON se2.name = sed2.parent
+				WHERE se2.work_order = %s
+				  AND se2.stock_entry_type = 'Material Transfer for Manufacture'
+				  AND se2.docstatus = 1
+				  AND sed2.t_warehouse = sd.warehouse
+				  AND sed2.item_code = %s
+			)
+		""", (item, work_order, work_order, item), as_dict=True)
 	else:
 		rows = frappe.db.sql("""
 			SELECT sd.warehouse, SUM(c.primary_available_qty) as qty
@@ -904,9 +913,52 @@ def get_transfer_warehouses_for_item(work_order, item):
 			WHERE c.name = sd.parent AND c.item_code = %s AND c.primary_available_qty > 0
 			AND c.status NOT IN ("Inactive", "Expired") AND sd.is_reserved = 1 AND sd.work_order = %s
 			GROUP BY sd.warehouse
-			ORDER BY MIN(c.creation)
-		""", (item, work_order), as_dict=True)
+			ORDER BY (
+				SELECT MIN(CONCAT(LPAD(UNIX_TIMESTAMP(se2.creation), 12, '0'), LPAD(sed2.idx, 5, '0')))
+				FROM `tabStock Entry Detail` sed2
+				JOIN `tabStock Entry` se2 ON se2.name = sed2.parent
+				WHERE se2.work_order = %s
+				  AND se2.stock_entry_type = 'Material Transfer for Manufacture'
+				  AND se2.docstatus = 1
+				  AND sed2.t_warehouse = sd.warehouse
+				  AND sed2.item_code = %s
+			)
+		""", (item, work_order, work_order, item), as_dict=True)
 	return [{'warehouse': r.warehouse, 'qty': flt(r.qty, 4)} for r in rows]
+
+@frappe.whitelist()
+def get_transfer_item_required_qty(work_order, item_code):
+	"""Return [{containers, required_qty}] from ALL submitted Material Transfer for Manufacture
+	entries for the given work order and item. Used when building the Manufacture SE to copy
+	required_qty per container set directly from the transfer entry."""
+	transfer_entries = frappe.get_all(
+		"Stock Entry",
+		filters={
+			"work_order": work_order,
+			"stock_entry_type": "Material Transfer for Manufacture",
+			"docstatus": 1
+		},
+		fields=["name"],
+		order_by="creation asc"
+	)
+	if not transfer_entries:
+		return []
+
+	result = []
+	for entry in transfer_entries:
+		rows = frappe.db.get_all(
+			"Stock Entry Detail",
+			filters={"parent": entry.name, "item_code": item_code},
+			fields=["containers", "required_qty"],
+			order_by="idx"
+		)
+		for r in rows:
+			if r.containers:
+				result.append({
+					"containers": (r.containers or "").rstrip(",").strip(),
+					"required_qty": flt(r.required_qty, precision)
+				})
+	return result
 
 from container.container.doctype.work_order.work_order import update_reserved_containers,delete_reserved_containers
 
