@@ -667,6 +667,23 @@ frappe.ui.form.on('Stock Entry', {
 																	}
 																});
 
+																// Fetch required_qty recorded per container set from the original
+																// Material Transfer entry, so we copy it directly instead of
+																// re-deriving it with the generic even-split formula.
+																let transfer_required_qtys = [];
+																frappe.call({
+																	method:
+																		'container.container.doctype.stock_entry.stock_entry.get_transfer_item_required_qty',
+																	args: {
+																		work_order: frm.doc.work_order,
+																		item_code: detail.item_code
+																	},
+																	async: false,
+																	callback: function(r) {
+																		transfer_required_qtys = r.message || [];
+																	}
+																});
+
 																for (let i = 0; i < no_of_inputs; i++) {
 																	// Pick the next warehouse from the transfer that has not been used yet.
 																	// warehouse_list persists across BOM rows so each warehouse is used only once,
@@ -703,8 +720,28 @@ frappe.ui.form.on('Stock Entry', {
 																				child.s_warehouse = target_warehouse;
 																				child.item_code = detail.item_code;
 																				child.item_name = detail.item_name;
-																				child.required_qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
-																				child.qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
+
+																				// Match required_qty to the containers actually assigned to this
+																				// row, as recorded against those same containers in the original
+																				// Material Transfer entry, instead of re-deriving it generically.
+																				let matched_required_qty = 0;
+																				let matched_any = false;
+																				for (let k = transfer_required_qtys.length - 1; k >= 0; k--) {
+																					let entry_containers = (transfer_required_qtys[k].containers || '')
+																						.split(',')
+																						.map(function(x) { return x.trim(); })
+																						.filter(Boolean);
+																					let overlaps = r.message[0].some(function(cn) {
+																						return entry_containers.includes(String(cn));
+																					});
+																					if (overlaps) {
+																						matched_required_qty += transfer_required_qtys[k].required_qty;
+																						matched_any = true;
+																						transfer_required_qtys.splice(k, 1);
+																					}
+																				}
+																				child.required_qty = matched_any ? matched_required_qty : transfer_qty;
+																				child.qty = matched_any ? matched_required_qty : transfer_qty;
 																				child.basic_rate = detail.rate;
 																				child.uom = detail.stock_uom;
 																				child.stock_uom = detail.stock_uom;
@@ -728,11 +765,8 @@ frappe.ui.form.on('Stock Entry', {
 																				child.s_warehouse = target_warehouse;
 																				child.item_code = detail.item_code;
 																				child.item_name = detail.item_name;
-																				child.required_qty = ((total_qty / c.quantity) * frm.doc.fg_completed_qty) / no_of_inputs;
-																				child.qty =
-																					((total_qty / c.quantity) *
-																						frm.doc.fg_completed_qty) /
-																					no_of_inputs;
+																				child.required_qty = transfer_qty;
+																				child.qty = transfer_qty;
 																				child.basic_rate = detail.rate;
 																				child.uom = detail.stock_uom;
 																				child.conversion_factor =
