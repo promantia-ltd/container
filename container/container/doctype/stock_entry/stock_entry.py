@@ -236,22 +236,23 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 				query = frappe.db.sql("""
 					SELECT sd.parent, c.primary_available_qty, sd.reserved_qty
 					FROM `tabContainer` c, `tabStock Details` sd
-					WHERE c.name = sd.parent AND c.item_code = %s AND sd.warehouse = %s 
+					WHERE c.name = sd.parent AND c.item_code = %s AND sd.warehouse = %s
 					AND c.status NOT IN ("Inactive", "Expired") AND sd.reserved_qty > 0 AND sd.work_order = %s
 					ORDER BY c.creation
 				""", (item, warehouse, work_order), as_dict=True
 				)
+				print("has_partially_reserved", query)
 
 			else:
 				query = frappe.db.sql("""
 					SELECT sd.parent, c.primary_available_qty, sd.is_reserved
 					FROM `tabContainer` c, `tabStock Details` sd
-					WHERE c.name = sd.parent AND c.item_code = %s AND c.primary_available_qty > 0 AND sd.warehouse = %s 
+					WHERE c.name = sd.parent AND c.item_code = %s AND c.actual_container_qty > 0 AND sd.warehouse = %s
 					AND c.status NOT IN ("Inactive", "Expired") AND sd.is_reserved = 1 AND sd.work_order = %s
 					ORDER BY c.creation
 				""", (item, warehouse, work_order), as_dict=True
 				)
-				
+
 			if query:
 				container_no, reserved_qty, reserved_qty_used = [], [], []
 				required_qty = flt(stock_qty, precision)
@@ -260,7 +261,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 					if data.parent not in used:
 						if not has_partially_reserved:
 							if flt(data.primary_available_qty, precision) < required_qty:
-								
+
 								#here full container qty is used
 								container_no.append(data.parent)
 								required_qty = required_qty - flt(data.primary_available_qty, precision)
@@ -272,7 +273,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 								reserved_qty.append(data.primary_available_qty)
 								reserved_qty_used.append(flt(required_qty, precision))
 								remaining_qty = f"{data.parent}:{flt(data.primary_available_qty - required_qty, precision)}"
-					
+
 								break
 
 						else:
@@ -461,120 +462,107 @@ def set_containers_status(doc, method):
 		if doc.work_order:
 			for item in doc.items:
 				try:
-					if item.is_finished_item != 1:
-						required_qty = flt(item.transfer_qty)
-						item_doc = frappe.get_doc("Item", item.item_code)
+					if item.is_finished_item == 1:
+						continue
 
-						if item_doc.is_containerized == 1:
-							# Get UOM conversions
-							secondary_uom_list = frappe.db.get_all(
-								"UOM Conversion Detail",
-								filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Secondary UOM'},
-								fields=['*']
+					required_qty = flt(item.transfer_qty)
+					item_doc = frappe.get_doc("Item", item.item_code)
+
+					if item_doc.is_containerized == 1:
+
+						# Extract the container list and qty list
+						container_no_list = (item.containers or "").split(",")
+						reserved_qty_list = str(item.available_qty_use or "").split(",")
+
+						if not container_no_list:
+							frappe.throw(f"Please set container for item at row {item.idx}")
+
+						# Scrap buffer logic
+						scrap_buffer = 0.1 if item_doc.ignore_scrap_qty else 0.0
+
+						# Loop each container linked in item row
+						for idx in range(len(container_no_list)):
+							container_name = container_no_list[idx]
+							if not container_name:
+								continue
+
+							# Fetch actual reserved qty for this WO
+							stock_detail = frappe.db.get_value(
+								"Stock Details",
+								{
+									"parent": container_name,
+									"work_order": doc.work_order
+								},
+								["name", "reserved_qty", "consumed_qty"],
+								as_dict=True
 							)
-							if not secondary_uom_list:
-								frappe.throw("Secondary UOM not found. Please specify Secondary UOM in Item Master.")
-							secondary_uom_conversion = secondary_uom_list[0]['conversion_factor']
 
-							primary_uom_list = frappe.db.get_all(
-								"UOM Conversion Detail",
-								filters={'parenttype': 'Item', 'parent': item.item_code, 'uom_type': 'Primary UOM'},
-								fields=['*']
-							)
-							if not primary_uom_list:
-								frappe.throw("Primary UOM not found. Please specify Primary UOM in Item Master.")
-							primary_uom_conversion = primary_uom_list[0]['conversion_factor']
+							# No record for this WO → Skip
+							if not stock_detail:
+								continue
 
-							container_no = item.containers
-							if not container_no:
-								frappe.throw(f"Please set appropriate container for item at row {item.idx}")
+							# Reserved qty ONLY for this work order
+							qty_reserved = flt(stock_detail.reserved_qty or 0, precision)
 
-							container_no_list = container_no.split(",")
-							reserved_qty_list = str(item.available_qty_use).split(",")
+							# Nothing to deduct
+							if qty_reserved <= 0:
+								continue
 
-							# Decide scrap buffer based on ignore_scrap_qty
-							if item_doc.ignore_scrap_qty:
-								scrap_buffer = 0.1  # keep buffer
-							else:
-								scrap_buffer = 0.0  # no buffer
+							# This is the qty to move from reserved → consumed
+							qty_to_use = min(qty_reserved, required_qty)
 
-							for i in range(len(container_no_list)):
-								container_name = container_no_list[i]
-								if not container_name or not reserved_qty_list[i]:
-									continue
+							# Update Stock Details for this row only
+							frappe.db.set_value("Stock Details", stock_detail.name, {
+								"reserved_qty": qty_reserved - qty_to_use,
+								"consumed_qty": flt(stock_detail.consumed_qty or 0) + qty_to_use
+							})
 
-								container_doc = frappe.get_doc(container_doctype, container_name)
-								available_qty = flt(reserved_qty_list[i], precision)
+							# Update Container actual qty
+							container_doc = frappe.get_doc(container_doctype, container_name)
+							new_actual_qty = flt(container_doc.actual_container_qty, precision) - qty_to_use
 
-								# Actual usable qty
-								usable_qty = flt(container_doc.actual_container_qty, precision) - scrap_buffer
-								if usable_qty <= 0:
-									continue
+							# Apply scrap buffer logic
+							if scrap_buffer > 0 and new_actual_qty < scrap_buffer:
+								new_actual_qty = scrap_buffer
+							elif scrap_buffer == 0 and new_actual_qty < 0:
+								new_actual_qty = 0
 
-								# How much can we take from this container?
-								qty_to_use = min(required_qty, usable_qty)
+							container_doc.db_set('actual_container_qty', new_actual_qty)
+							container_doc.db_set('consumption_status', "Partially Consumed")
+							container_doc.add_comment('Comment', f"Consumed {qty_to_use} for Stock Entry: {doc.name}")
 
-								# Get stock detail row
-								stock_detail_name = frappe.db.get_value(
-									'Stock Details',
-									{'parent': container_doc.name, 'work_order': doc.work_order},
-									'name'
-								)
-								if not stock_detail_name:
-									continue
+							required_qty -= qty_to_use
+							if required_qty <= 0.0001:
+								break
 
-								stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_name)
+						# Final status update for each container
+						for container_name in container_no_list:
+							if not container_name:
+								continue
 
-								# Update Stock Detail
-								new_reserved_qty = flt(stock_detail_doc.reserved_qty, precision) - qty_to_use
-								if new_reserved_qty < 0:
-									new_reserved_qty = 0
+							container_doc = frappe.get_doc(container_doctype, container_name)
 
-								new_consumed_qty = flt(stock_detail_doc.consumed_qty or 0) + qty_to_use
-								stock_detail_doc.db_set('consumed_qty', new_consumed_qty)
-								stock_detail_doc.db_set('reserved_qty', new_reserved_qty)
+							total_consumed = frappe.db.sql("""
+								SELECT SUM(consumed_qty)
+								FROM `tabStock Details`
+								WHERE parent = %s
+							""", container_doc.name)[0][0] or 0
 
-								# Update Container
-								new_actual_qty = flt(container_doc.actual_container_qty, precision) - qty_to_use
-								if scrap_buffer > 0 and new_actual_qty < scrap_buffer:
-									new_actual_qty = scrap_buffer
-								elif scrap_buffer == 0 and new_actual_qty < 0:
-									new_actual_qty = 0
+							# Fully consumed
+							if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision) - scrap_buffer:
+								container_doc.db_set("consumption_status", "Consumed")
 
-								container_doc.db_set('actual_container_qty', new_actual_qty)
-								container_doc.db_set('consumption_status', "Partially Consumed")
-								container_doc.add_comment('Comment', f"Used qty: {qty_to_use} for Stock Entry: {doc.name}")
-
-								required_qty -= qty_to_use
-								frappe.db.commit()
-
-								if required_qty <= 0.0001:
-									break
-
-							# Final container status check
-							for container_name in container_no_list:
-								if not container_name:
-									continue
-								container_doc = frappe.get_doc(container_doctype, container_name)
-								total_consumed = frappe.db.sql("""
-									SELECT SUM(consumed_qty) FROM `tabStock Details`
-									WHERE parent = %s
-								""", container_doc.name)[0][0] or 0
-
-								# Fully consumed if usable qty is gone
-								if flt(total_consumed, precision) >= flt(container_doc.initial_qty, precision) - scrap_buffer:
-									container_doc.db_set("consumption_status", "Consumed")
-
-								if flt(container_doc.actual_container_qty, precision) <= scrap_buffer:
-									container_doc.db_set("status", "Active")
-									container_doc.db_set("consumption_status", "Consumed")
+							# If actual qty is fully gone
+							if flt(container_doc.actual_container_qty, precision) <= scrap_buffer:
+								container_doc.db_set("status", "Active")
+								container_doc.db_set("consumption_status", "Consumed")
 
 				except Exception as e:
 					frappe.db.rollback()
 					frappe.log_error("An error occurred: {}".format(str(e)))
-					frappe.throw("An error occurred while updating containers. For more info, check the Error Log.")
+					frappe.throw("Error while consuming container. Check Error Log.")
 
-
+			frappe.db.commit()
 
 	if doc.stock_entry_type == "Manufacture" and not doc.system_generated and not doc.work_order:
 		for item in doc.items:
@@ -784,20 +772,18 @@ def on_cancel(doc, method):
 								secondary_uom_qty = stock_qty * secondary_uom_conversion
 
 								container_doc = get_doc(container_doctype, container_no)
-								stock_detail_doc=frappe.db.get_value('Stock Details',{'parent':container_doc.name,'work_order': doc.work_order},'name')
+								stock_detail_doc = frappe.db.get_value('Stock Details', {'parent': container_doc.name, 'work_order': doc.work_order}, 'name')
 
 								if stock_detail_doc:
 									stock_detail_doc = get_doc("Stock Details", stock_detail_doc)
-									
-									if has_partially_reserved:
-										qty_to_revert = flt(reserved_qty[i], precision)
 
-										stock_detail_doc.db_set('consumed_qty', 
-											flt(stock_detail_doc.consumed_qty, precision) - qty_to_revert
-										)
-										stock_detail_doc.db_set('reserved_qty', 
-								  			flt(stock_detail_doc.reserved_qty) + qty_to_revert
-										)
+									if has_partially_reserved:
+										consumed_qty = flt(stock_detail_doc.consumed_qty, precision)
+										qty_to_revert = min(consumed_qty, flt(reserved_qty[i], precision))
+
+										stock_detail_doc.db_set('consumed_qty', consumed_qty - qty_to_revert)
+										stock_detail_doc.db_set('reserved_qty', flt(stock_detail_doc.reserved_qty) + qty_to_revert)
+
 										new_actual_qty = container_doc.actual_container_qty + qty_to_revert
 										container_doc.db_set('actual_container_qty', new_actual_qty)
 										if new_actual_qty > 0:
@@ -875,9 +861,16 @@ def get_uom_conversion(item):
 @frappe.whitelist()
 def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item=None):
 	operation_list=frappe.db.get_all("Work Order Operation",filters={'parenttype':'Work Order','parent':work_order,'operation':operation},fields={'workstation'})
+	if not operation_list:
+		return wip_warehouse
+
 	converted=json.loads(warehouse_list)
-	input_sources=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':operation_list[0]['workstation'],'w_name':['not in',converted]},fields={'w_name'},order_by="idx")
-	workstation=frappe.db.get_value("Workstation",operation_list[0]['workstation'],"input_source_enabled")
+	workstation_name = operation_list[0].get('workstation')
+	if not workstation_name:
+		return wip_warehouse
+
+	input_sources=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':workstation_name,'w_name':['not in',converted]},fields={'w_name'},order_by="idx")
+	workstation=frappe.db.get_value("Workstation",workstation_name,"input_source_enabled")
 	item_doc=frappe.get_doc("Item",item)
 	if workstation and item_doc.machine_loaded=="Machine Loaded Container":
 		if input_sources!=[]:
@@ -887,6 +880,85 @@ def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item
 			frappe.throw('Unable to assign the Input sources as no sources mentioned at the workstation selected in the Work Order')
 			return False
 	return wip_warehouse
+
+@frappe.whitelist()
+def get_transfer_warehouses_for_item(work_order, item):
+	"""Return warehouses (in transfer entry row order) where containers are reserved
+	for the given work order and item. Used when building the Manufacture SE to pass
+	the correct warehouse to get_item_container_no instead of re-running get_target_warehouses,
+	which may resolve to a different machine than the one used during Material Transfer."""
+	has_partially_reserved = partially_reserved()
+	if has_partially_reserved:
+		rows = frappe.db.sql("""
+			SELECT sd.warehouse, SUM(sd.reserved_qty) as qty
+			FROM `tabContainer` c, `tabStock Details` sd
+			WHERE c.name = sd.parent AND c.item_code = %s
+			AND c.status NOT IN ("Inactive", "Expired") AND sd.reserved_qty > 0 AND sd.work_order = %s
+			GROUP BY sd.warehouse
+			ORDER BY (
+				SELECT MIN(CONCAT(LPAD(UNIX_TIMESTAMP(se2.creation), 12, '0'), LPAD(sed2.idx, 5, '0')))
+				FROM `tabStock Entry Detail` sed2
+				JOIN `tabStock Entry` se2 ON se2.name = sed2.parent
+				WHERE se2.work_order = %s
+				  AND se2.stock_entry_type = 'Material Transfer for Manufacture'
+				  AND se2.docstatus = 1
+				  AND sed2.t_warehouse = sd.warehouse
+				  AND sed2.item_code = %s
+			)
+		""", (item, work_order, work_order, item), as_dict=True)
+	else:
+		rows = frappe.db.sql("""
+			SELECT sd.warehouse, SUM(c.primary_available_qty) as qty
+			FROM `tabContainer` c, `tabStock Details` sd
+			WHERE c.name = sd.parent AND c.item_code = %s AND c.primary_available_qty > 0
+			AND c.status NOT IN ("Inactive", "Expired") AND sd.is_reserved = 1 AND sd.work_order = %s
+			GROUP BY sd.warehouse
+			ORDER BY (
+				SELECT MIN(CONCAT(LPAD(UNIX_TIMESTAMP(se2.creation), 12, '0'), LPAD(sed2.idx, 5, '0')))
+				FROM `tabStock Entry Detail` sed2
+				JOIN `tabStock Entry` se2 ON se2.name = sed2.parent
+				WHERE se2.work_order = %s
+				  AND se2.stock_entry_type = 'Material Transfer for Manufacture'
+				  AND se2.docstatus = 1
+				  AND sed2.t_warehouse = sd.warehouse
+				  AND sed2.item_code = %s
+			)
+		""", (item, work_order, work_order, item), as_dict=True)
+	return [{'warehouse': r.warehouse, 'qty': flt(r.qty, 4)} for r in rows]
+
+@frappe.whitelist()
+def get_transfer_item_required_qty(work_order, item_code):
+	"""Return [{containers, required_qty}] from ALL submitted Material Transfer for Manufacture
+	entries for the given work order and item. Used when building the Manufacture SE to copy
+	required_qty per container set directly from the transfer entry."""
+	transfer_entries = frappe.get_all(
+		"Stock Entry",
+		filters={
+			"work_order": work_order,
+			"stock_entry_type": "Material Transfer for Manufacture",
+			"docstatus": 1
+		},
+		fields=["name"],
+		order_by="creation asc"
+	)
+	if not transfer_entries:
+		return []
+
+	result = []
+	for entry in transfer_entries:
+		rows = frappe.db.get_all(
+			"Stock Entry Detail",
+			filters={"parent": entry.name, "item_code": item_code},
+			fields=["containers", "required_qty"],
+			order_by="idx"
+		)
+		for r in rows:
+			if r.containers:
+				result.append({
+					"containers": (r.containers or "").rstrip(",").strip(),
+					"required_qty": flt(r.required_qty, precision)
+				})
+	return result
 
 from container.container.doctype.work_order.work_order import update_reserved_containers,delete_reserved_containers
 
