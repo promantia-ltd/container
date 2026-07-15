@@ -710,17 +710,22 @@ frappe.ui.form.on('Stock Entry', {
 																		},
 																		async: false,
 																		callback: function(r) {
+																			// If a row for this item at this warehouse already exists (the same
+																			// item can appear on multiple BOM rows), combine into that row
+																			// instead of adding a duplicate line for the same item + warehouse.
+																			let existing_row = (frm.doc.items || []).find(function(row) {
+																				return row.is_finished_item != 1 &&
+																					row.item_code === detail.item_code &&
+																					row.s_warehouse === target_warehouse;
+																			});
+																			
 																			if (
 																				Array.isArray(r.message) &&
 																				Array.isArray(r.message[0]) &&
 																				r.message[0].length
 																			) {
 																				container_used.push(r.message[0]);
-																				var child = frm.add_child('items');
-																				child.s_warehouse = target_warehouse;
-																				child.item_code = detail.item_code;
-																				child.item_name = detail.item_name;
-
+																			
 																				// Match required_qty to the containers actually assigned to this
 																				// row, as recorded against those same containers in the original
 																				// Material Transfer entry, instead of re-deriving it generically.
@@ -740,14 +745,8 @@ frappe.ui.form.on('Stock Entry', {
 																						transfer_required_qtys.splice(k, 1);
 																					}
 																				}
-																				child.required_qty = matched_any ? matched_required_qty : transfer_qty;
-																				child.qty = matched_any ? matched_required_qty : transfer_qty;
-																				child.basic_rate = detail.rate;
-																				child.uom = detail.stock_uom;
-																				child.stock_uom = detail.stock_uom;
-																				child.conversion_factor = 1;
-																				child.transfer_qty = total_qty;
-
+																				let row_qty = matched_any ? matched_required_qty : transfer_qty;
+																			
 																				let container_no = '';
 																				let available_qty_use = '';
 																				let available_qty = '';
@@ -756,11 +755,38 @@ frappe.ui.form.on('Stock Entry', {
 																					available_qty = available_qty + String(r.message[1][j]) + ',';
 																					available_qty_use = available_qty_use + String(r.message[3][j]) + ',';
 																				}
-																				child.containers = container_no;
-																				child.available_qty = available_qty;
-																				child.remaining_qty = r.message[2];
-																				child.available_qty_use = available_qty_use;
-																			} else {
+																			
+																				if (existing_row) {
+																					existing_row.required_qty += row_qty;
+																					existing_row.qty += row_qty;
+																					existing_row.containers = (existing_row.containers || '') + container_no;
+																					existing_row.available_qty = (existing_row.available_qty || '') + available_qty;
+																					existing_row.available_qty_use = (existing_row.available_qty_use || '') + available_qty_use;
+																					if (r.message[2]) {
+																						existing_row.remaining_qty = existing_row.remaining_qty
+																							? existing_row.remaining_qty + ',' + r.message[2]
+																							: r.message[2];
+																					}
+																				} else {
+																					var child = frm.add_child('items');
+																					child.s_warehouse = target_warehouse;
+																					child.item_code = detail.item_code;
+																					child.item_name = detail.item_name;
+																					child.required_qty = row_qty;
+																					child.qty = row_qty;
+																					child.basic_rate = detail.rate;
+																					child.uom = detail.stock_uom;
+																					child.stock_uom = detail.stock_uom;
+																					child.conversion_factor = 1;
+																					child.transfer_qty = total_qty;
+																					child.containers = container_no;
+																					child.available_qty = available_qty;
+																					child.remaining_qty = r.message[2];
+																					child.available_qty_use = available_qty_use;
+																				}
+																			} else if (!existing_row) {
+																				// No containers found here and no earlier row for this
+																				// item + warehouse -- keep the plain fallback row.
 																				var child = frm.add_child('items');
 																				child.s_warehouse = target_warehouse;
 																				child.item_code = detail.item_code;
@@ -773,6 +799,9 @@ frappe.ui.form.on('Stock Entry', {
 																					detail.conversion_factor;
 																				child.transfer_qty = total_qty;
 																			}
+																			// else: no containers left here AND a row for this item + warehouse
+																			// already exists -- its qty already covers what was reserved at this
+																			// warehouse, so adding another row would double-count.
 																		}
 																	});
 																} //end no of inputs
