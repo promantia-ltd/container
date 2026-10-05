@@ -143,6 +143,8 @@ def update_container_details_from_pr(doc, method):
         container_doc.status = "Active"
         container_doc.save(ignore_permissions=True)
         
+
+
 def update_container_precision(doc, method):
     if not doc.is_return:
         for item in doc.items:
@@ -401,25 +403,95 @@ def get_aging_rate(w_temperature,item_doc):
     if not aging_rate:
         frappe.throw(f"The "+str(w_temperature.name)+" warehouse temperature "+str(w_temperature.temperature)+"not specified in the Item Master,Please contact the administrator.")
     return aging_rate
+def revert_containers_on_return_cancel(self):
+    """Revert container quantities when a Purchase Receipt Return is cancelled.
+    Restores the qty that was reduced during the return submit."""
+    try:
+        for item in self.get("items"):
+            containers_str = frappe.db.get_value(
+                "Purchase Receipt Item",
+                {"parent": self.name, "item_code": item.item_code},
+                "containers"
+            )
+
+            if not containers_str:
+                continue
+
+            container_list = containers_str.strip().split("\n")
+
+            original_pr_item = frappe.db.get_value(
+                "Purchase Receipt Item",
+                {"parent": self.return_against, "item_code": item.item_code},
+                ["stock_qty", "no_of_containers"],
+                as_dict=True
+            )
+
+            if not original_pr_item or not original_pr_item["no_of_containers"]:
+                frappe.log_error(
+                    f"Cannot revert containers for item {item.item_code}: "
+                    f"original PR item not found or no_of_containers is 0"
+                )
+                continue
+
+            original_qty_per_container = (
+                original_pr_item["stock_qty"] / original_pr_item["no_of_containers"]
+            )
+
+            qty_to_restore = abs(item.qty)
+            total_restored_qty = 0
+
+            for container_no in container_list:
+                if total_restored_qty >= qty_to_restore:
+                    break
+
+                container_doc = frappe.get_doc("Container", container_no)
+
+                restore_now = min(qty_to_restore - total_restored_qty, original_qty_per_container)
+
+                new_primary = flt(container_doc.primary_available_qty) + restore_now
+                container_doc.db_set("primary_available_qty", new_primary)
+                container_doc.db_set("secondary_available_qty", new_primary)
+
+                reserved_qty_total = sum(
+                    flt(getattr(d, "reserved_qty", 0)) for d in (container_doc.get("stock_details") or [])
+                )
+                container_doc.db_set("actual_container_qty", new_primary + reserved_qty_total)
+
+                if new_primary > 0:
+                    container_doc.db_set("status", "Active")
+
+                total_restored_qty += restore_now
+
+        frappe.db.commit()
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error reverting containers on Purchase Return cancel: {str(e)}")
+        frappe.throw("Failed to revert containers on Purchase Return cancel. Check the error log.")
+
+
 def on_cancel(self,method=None):
-     if not self.is_return:
-        container_no_list=[]
-        for item in self.get('items'):
-            item_container=item.containers
-            if item_container:
-                containers=item_container.split("\n")
-                for container in containers:
-                    if frappe.db.get_value("Container", {'name':container}, "warehouse")!=item.warehouse:
-                        frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
-                    elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
-                        frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
-                    container_no_list.extend(item_container.split("\n"))
-        for container in container_no_list:
-            sp_doc=frappe.get_doc(container_no_doc,container)
-            sp_doc.db_set("primary_available_qty", 0)
-            sp_doc.db_set("secondary_available_qty", 0)
-            sp_doc.db_set("status","Cancelled")
-            frappe.db.commit()
+     if self.is_return:
+        revert_containers_on_return_cancel(self)
+        return
+
+     container_no_list=[]
+     for item in self.get('items'):
+        item_container=item.containers
+        if item_container:
+            containers=item_container.split("\n")
+            for container in containers:
+                if frappe.db.get_value("Container", {'name':container}, "warehouse")!=item.warehouse:
+                    frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
+                elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
+                    frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
+                container_no_list.extend(item_container.split("\n"))
+     for container in container_no_list:
+        sp_doc=frappe.get_doc(container_no_doc,container)
+        sp_doc.db_set("primary_available_qty", 0)
+        sp_doc.db_set("secondary_available_qty", 0)
+        sp_doc.db_set("status","Cancelled")
+        frappe.db.commit()
         
 def get_auto_container_nos(container_no_series, qty):
     container_nos = []
