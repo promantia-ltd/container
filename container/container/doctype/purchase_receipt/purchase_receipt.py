@@ -27,6 +27,18 @@ def delete_entities(self):
 
     frappe.db.commit()  # Ensure rollback changes are committed
 
+def validate(self, method):
+    """Validate Purchase Receipt before save"""
+    validate_conversion_factor_not_zero(self)
+
+def validate_conversion_factor_not_zero(self):
+    """Validate that conversion factor is not zero for any item"""
+    for item in self.get("items"):
+        if item.conversion_factor is not None and flt(item.conversion_factor) == 0:
+            frappe.throw(
+                _("Conversion Factor cannot be zero for Item {0} in row {1}").format(item.item_code, item.idx)
+            )
+
 def on_submit(self, method):
     try:
         for item in self.get("items"):
@@ -131,6 +143,8 @@ def update_container_details_from_pr(doc, method):
         container_doc.status = "Active"
         container_doc.save(ignore_permissions=True)
         
+
+
 def update_container_precision(doc, method):
     if not doc.is_return:
         for item in doc.items:
@@ -389,25 +403,95 @@ def get_aging_rate(w_temperature,item_doc):
     if not aging_rate:
         frappe.throw(f"The "+str(w_temperature.name)+" warehouse temperature "+str(w_temperature.temperature)+"not specified in the Item Master,Please contact the administrator.")
     return aging_rate
+def revert_containers_on_return_cancel(self):
+    """Revert container quantities when a Purchase Receipt Return is cancelled.
+    Restores the qty that was reduced during the return submit."""
+    try:
+        for item in self.get("items"):
+            containers_str = frappe.db.get_value(
+                "Purchase Receipt Item",
+                {"parent": self.name, "item_code": item.item_code},
+                "containers"
+            )
+
+            if not containers_str:
+                continue
+
+            container_list = containers_str.strip().split("\n")
+
+            original_pr_item = frappe.db.get_value(
+                "Purchase Receipt Item",
+                {"parent": self.return_against, "item_code": item.item_code},
+                ["stock_qty", "no_of_containers"],
+                as_dict=True
+            )
+
+            if not original_pr_item or not original_pr_item["no_of_containers"]:
+                frappe.log_error(
+                    f"Cannot revert containers for item {item.item_code}: "
+                    f"original PR item not found or no_of_containers is 0"
+                )
+                continue
+
+            original_qty_per_container = (
+                original_pr_item["stock_qty"] / original_pr_item["no_of_containers"]
+            )
+
+            qty_to_restore = abs(item.qty)
+            total_restored_qty = 0
+
+            for container_no in container_list:
+                if total_restored_qty >= qty_to_restore:
+                    break
+
+                container_doc = frappe.get_doc("Container", container_no)
+
+                restore_now = min(qty_to_restore - total_restored_qty, original_qty_per_container)
+
+                new_primary = flt(container_doc.primary_available_qty) + restore_now
+                container_doc.db_set("primary_available_qty", new_primary)
+                container_doc.db_set("secondary_available_qty", new_primary)
+
+                reserved_qty_total = sum(
+                    flt(getattr(d, "reserved_qty", 0)) for d in (container_doc.get("stock_details") or [])
+                )
+                container_doc.db_set("actual_container_qty", new_primary + reserved_qty_total)
+
+                if new_primary > 0:
+                    container_doc.db_set("status", "Active")
+
+                total_restored_qty += restore_now
+
+        frappe.db.commit()
+
+    except Exception as e:
+        frappe.db.rollback()
+        frappe.log_error(f"Error reverting containers on Purchase Return cancel: {str(e)}")
+        frappe.throw("Failed to revert containers on Purchase Return cancel. Check the error log.")
+
+
 def on_cancel(self,method=None):
-     if not self.is_return:
-        container_no_list=[]
-        for item in self.get('items'):
-            item_container=item.containers
-            if item_container:
-                containers=item_container.split("\n")
-                for container in containers:
-                    if frappe.db.get_value("Container", {'name':container}, "warehouse")!=item.warehouse:
-                        frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
-                    elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
-                        frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
-                    container_no_list.extend(item_container.split("\n"))
-        for container in container_no_list:
-            sp_doc=frappe.get_doc(container_no_doc,container)
-            sp_doc.db_set("primary_available_qty", 0)
-            sp_doc.db_set("secondary_available_qty", 0)
-            sp_doc.db_set("status","Cancelled")
-            frappe.db.commit()
+     if self.is_return:
+        revert_containers_on_return_cancel(self)
+        return
+
+     container_no_list=[]
+     for item in self.get('items'):
+        item_container=item.containers
+        if item_container:
+            containers=item_container.split("\n")
+            for container in containers:
+                if frappe.db.get_value("Container", {'name':container}, "warehouse")!=item.warehouse:
+                    frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
+                elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
+                    frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
+                container_no_list.extend(item_container.split("\n"))
+     for container in container_no_list:
+        sp_doc=frappe.get_doc(container_no_doc,container)
+        sp_doc.db_set("primary_available_qty", 0)
+        sp_doc.db_set("secondary_available_qty", 0)
+        sp_doc.db_set("status","Cancelled")
+        frappe.db.commit()
         
 def get_auto_container_nos(container_no_series, qty):
     container_nos = []
@@ -701,3 +785,68 @@ def save_container_reference_number(quantity, docstatus):
         frappe.db.rollback()
         frappe.log_error(f"Error saving container reference number and quantity: {str(e)}")
         frappe.throw(f"Error saving container reference number and quantity: {str(e)}")
+
+
+def get_item_account_wise_additional_cost(purchase_document):
+	landed_cost_vouchers = frappe.get_all(
+		"Landed Cost Purchase Receipt",
+		fields=["parent"],
+		filters={"receipt_document": purchase_document, "docstatus": 1},
+	)
+
+	if not landed_cost_vouchers:
+		return
+
+	item_account_wise_cost = {}
+
+	for lcv in landed_cost_vouchers:
+		landed_cost_voucher_doc = frappe.get_doc("Landed Cost Voucher", lcv.parent)
+
+		based_on_field = None
+		# Use amount field for total item cost for manually cost distributed LCVs
+		if landed_cost_voucher_doc.distribute_charges_based_on != "Distribute Manually":
+			based_on_field = frappe.scrub(landed_cost_voucher_doc.distribute_charges_based_on)
+
+		total_item_cost = 0
+
+		if based_on_field:
+			for item in landed_cost_voucher_doc.items:
+				total_item_cost += item.get(based_on_field)
+
+		# Calculate total taxes for proportional distribution in manual mode
+		total_taxes = sum(flt(account.base_amount) for account in landed_cost_voucher_doc.taxes)
+
+		for item in landed_cost_voucher_doc.items:
+			if item.receipt_document == purchase_document:
+				for account in landed_cost_voucher_doc.taxes:
+					exchange_rate = account.exchange_rate or 1
+					item_account_wise_cost.setdefault((item.item_code, item.purchase_receipt_item), {})
+					item_account_wise_cost[(item.item_code, item.purchase_receipt_item)].setdefault(
+						account.expense_account, {"amount": 0.0, "base_amount": 0.0}
+					)
+
+					item_row = item_account_wise_cost[(item.item_code, item.purchase_receipt_item)][
+						account.expense_account
+					]
+
+					if total_item_cost > 0:
+						item_row["amount"] += account.amount * item.get(based_on_field) / total_item_cost
+
+						item_row["base_amount"] += (
+							account.base_amount * item.get(based_on_field) / total_item_cost
+						)
+					else:
+						# Fix: Distribute applicable_charges proportionally across tax accounts
+						# based on each tax account's proportion of total taxes
+						if total_taxes > 0:
+							tax_proportion = account.base_amount / total_taxes
+							item_row["amount"] += (item.applicable_charges * tax_proportion) / exchange_rate
+							item_row["base_amount"] += item.applicable_charges * tax_proportion
+						else:
+							# Fallback: distribute equally if no taxes
+							num_taxes = len(landed_cost_voucher_doc.taxes)
+							if num_taxes > 0:
+								item_row["amount"] += (item.applicable_charges / num_taxes) / exchange_rate
+								item_row["base_amount"] += item.applicable_charges / num_taxes
+
+	return item_account_wise_cost

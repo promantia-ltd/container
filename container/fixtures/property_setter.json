@@ -30,5 +30,21 @@
   "property_type": "Text",
   "row_name": null,
   "value": "0"
+ },
+ {
+  "default_value": null,
+  "doc_type": "Work Order",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "source_warehouse",
+  "is_system_generated": 0,
+  "modified": "2026-07-15 18:45:34.007328",
+  "module": "Container",
+  "name": "Work Order-source_warehouse-reqd",
+  "property": "reqd",
+  "property_type": "Check",
+  "row_name": null,
+  "value": "1"
  }
 ]

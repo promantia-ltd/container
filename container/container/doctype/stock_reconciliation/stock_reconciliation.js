@@ -24,7 +24,7 @@ frappe.ui.form.on('Stock Reconciliation', {
 	before_save(frm){
 		if(!frm.doc.custom_container_reconciliation){
 			frappe.db.get_value("Container Settings","Container Settings", "allow_stock_reconciliation",(s)=>{
-				if(s.allow_reconciliation==1){
+				if(s.allow_stock_reconciliation==0){
 					$.each(frm.doc.items, function(idx, item){
 						frappe.db.get_value("Item",item.item_code, "is_containerized",(s)=>{
 							if(s.is_containerized==1){
@@ -89,7 +89,7 @@ frappe.ui.form.on('Stock Reconciliation', {
 frappe.ui.form.on('Stock Reconciliation Item', {
 	item_code(frm,doctype,name){
 		frappe.db.get_value("Container Settings","Container Settings", "allow_stock_reconciliation",(s)=>{
-			if(s.allow_reconciliation==1){
+			if(s.allow_stock_reconciliation==0){
 				var row = locals[doctype][name];
 				frappe.db.get_value("Item",row.item_code, "is_containerized",(s)=>{
 					if(s.is_containerized==1){

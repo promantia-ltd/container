@@ -435,7 +435,6 @@
    "fieldname": "primary_available_qty",
    "fieldtype": "Float",
    "label": "Primary Available qty",
-   "precision": "4",
    "read_only": 1
   },
   {
@@ -686,7 +685,7 @@
  "grid_page_length": 50,
  "icon": "fa fa-barcode",
  "links": [],
- "modified": "2025-07-22 17:45:20.010643",
+ "modified": "2025-12-03 17:02:20.925935",
  "modified_by": "Administrator",
  "module": "Container",
  "name": "Container",

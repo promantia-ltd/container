@@ -1,6 +1,39 @@
 frappe.provide("container.container");
 
+frappe.ui.form.on('Delivery Note', {
+	onload: function(frm) {
+		// Copy warehouse from header to items when loading a new document
+		if (frm.doc.__islocal && frm.doc.set_warehouse) {
+			copy_warehouse_to_items(frm);
+		}
+	},
+	set_warehouse: function(frm) {
+		// Copy warehouse to items when header warehouse is changed
+		if (frm.doc.set_warehouse) {
+			copy_warehouse_to_items(frm);
+		}
+	}
+});
+
+function copy_warehouse_to_items(frm) {
+	if (frm.doc.set_warehouse && frm.doc.items) {
+		frm.doc.items.forEach(function(item) {
+			if (!item.warehouse) {
+				frappe.model.set_value(item.doctype, item.name, 'warehouse', frm.doc.set_warehouse);
+			}
+		});
+		frm.refresh_field('items');
+	}
+}
+
 frappe.ui.form.on('Delivery Note Item', {
+	items_add: function(frm, cdt, cdn) {
+		// Set warehouse from header when a new item row is added
+		let item = locals[cdt][cdn];
+		if (frm.doc.set_warehouse && !item.warehouse) {
+			frappe.model.set_value(cdt, cdn, 'warehouse', frm.doc.set_warehouse);
+		}
+	},
 	// item_code:function(frm,cdt,cdn){
 	// 	let d=locals[cdt][cdn]
 	// 	frappe.db.get_value("Item",{"name" :d.item_code},"*",(db)=>{
