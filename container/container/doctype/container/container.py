@@ -95,6 +95,25 @@ class Container(Document):
 			rt_expiry_date_in_days=frappe.utils.data.date_diff(self.expiry_date, today)
 			self.rt_expiry_date_in_days=rt_expiry_date_in_days
 	
+	def on_trash(self):
+		if self.purchase_document_no and self.purchase_document_type:
+			docstatus = frappe.db.get_value(
+				self.purchase_document_type, self.purchase_document_no, "docstatus"
+			)
+			if docstatus == 1:
+				frappe.throw(
+					_("Container {0} cannot be deleted because it is linked to submitted {1} {2}. "
+					  "Cancel the linked document first.").format(
+						frappe.bold(self.name),
+						self.purchase_document_type,
+						frappe.utils.get_link_to_form(
+							self.purchase_document_type,
+							self.purchase_document_no
+						)
+					),
+					title=_("Deletion Not Allowed")
+				)
+
 	def set_raw_containers_for_fg(self):
 		if self.purchase_document_type == "Stock Entry" and not self.used_containers:
 			containers = []
@@ -118,6 +137,27 @@ class Container(Document):
 						'item_code': key,
 						'containers': all_containers
 					})
+
+def prevent_delete_if_linked(doc, method=None):
+	"""Block deletion of any Container linked to a submitted stock transaction."""
+	if doc.purchase_document_no and doc.purchase_document_type:
+		docstatus = frappe.db.get_value(
+			doc.purchase_document_type, doc.purchase_document_no, "docstatus"
+		)
+		if docstatus == 1:
+			frappe.throw(
+				_("Container {0} cannot be deleted because it is linked to submitted {1} {2}. "
+				  "Cancel the linked document first.").format(
+					frappe.bold(doc.name),
+					doc.purchase_document_type,
+					frappe.utils.get_link_to_form(
+						doc.purchase_document_type,
+						doc.purchase_document_no
+					)
+				),
+				title=_("Deletion Not Allowed")
+			)
+
 
 def get_stock_entry_containers(self):
 	return frappe.db.get_all("Stock Entry Detail",{'parent':self.purchase_document_no},['item_code','t_warehouse','containers'])
