@@ -7,10 +7,12 @@
  "engine": "InnoDB",
  "field_order": [
   "slno",
+  "pr_item_line",
   "item_code",
   "warehouse",
   "uom",
   "column_break_gvpz",
+  "pr_item_name",
   "container_ref",
   "qty",
   "updated",
@@ -22,6 +24,19 @@
    "fieldtype": "Int",
    "in_list_view": 1,
    "label": "Sl.No"
+  },
+  {
+   "fieldname": "pr_item_line",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Line #",
+   "read_only": 1
+  },
+  {
+   "fieldname": "pr_item_name",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "PR Item Name"
   },
   {
    "fieldname": "item_code",

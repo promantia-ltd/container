@@ -230,6 +230,9 @@ doc_events = {
     "Pick List": {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
     },
+    "Container": {
+        "on_trash": "container.container.doctype.container.container.prevent_delete_if_linked",
+    },
     "Delivery Note": {
         "before_insert": "container.container.doctype.delivery_note.delivery_note.copy_set_warehouse_to_items",
         "on_submit": ["container.container.doctype.delivery_note.delivery_note.container_processing",

@@ -30,6 +30,17 @@ def delete_entities(self):
 def validate(self, method):
     """Validate Purchase Receipt before save"""
     validate_conversion_factor_not_zero(self)
+    validate_item_warehouses(self)
+
+def validate_item_warehouses(self):
+    """Each item line must have a warehouse — document-level set_warehouse is optional."""
+    for item in self.get("items"):
+        if not item.warehouse:
+            frappe.throw(
+                _("Accepted Warehouse is required for Item {0} in row {1}").format(
+                    item.item_code, item.idx
+                )
+            )
 
 def validate_conversion_factor_not_zero(self):
     """Validate that conversion factor is not zero for any item"""
