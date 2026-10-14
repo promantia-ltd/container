@@ -14,23 +14,22 @@ container_no_doc="Container"
 def delete_entities(self):
     for item in self.get("items"):
         if item.containers:
-            entities = item.containers.split(
-                "\n"
-            )  # Assuming containers are stored as newline-separated
-            for entity_name in entities:
-                frappe.delete_doc("Container", entity_name, force=1)
-
-            # Clear the container field
+            for entity_name in filter(None, item.containers.split("\n")):
+                # Stale names copied from another PR (e.g. via duplicate) must not delete that PR's containers
+                owner = frappe.db.get_value("Container", entity_name, "purchase_document_no")
+                if owner == self.name:
+                    frappe.delete_doc("Container", entity_name, force=1)
             item.containers = ""
             item.db_set("containers", "")
-            # Explicitly update the database field
 
-    frappe.db.commit()  # Ensure rollback changes are committed
+    frappe.db.commit()
 
 def before_insert(self, method=None):
-    """Clear container qty details when a PR is duplicated."""
+    """Clear all container-related data when a PR is duplicated."""
     self.set("custom_container_qty_details", [])
     self.custom_container_set_qty = 0
+    for item in self.get("items"):
+        item.containers = ""
 
 def validate(self, method):
     """Validate Purchase Receipt before save"""
