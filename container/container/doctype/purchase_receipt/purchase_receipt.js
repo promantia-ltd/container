@@ -68,6 +68,22 @@ frappe.ui.form.on('Purchase Receipt Item', {
 		let d=locals[cdt][cdn]
 		frappe.model.set_value(cdt,cdn,"qty",d.quantity);
 	},
+	warehouse: function(frm, cdt, cdn) {
+		let item = locals[cdt][cdn];
+		let new_warehouse = item.warehouse;
+		if (!new_warehouse) return;
+
+		// Update warehouse on all custom_container_qty_details rows
+		// that belong to this PR item line
+		(frm.doc.custom_container_qty_details || []).forEach(row => {
+			if (row.pr_item_name === item.name) {
+				frappe.model.set_value(
+					row.doctype, row.name, 'warehouse', new_warehouse
+				);
+			}
+		});
+		frm.refresh_field('custom_container_qty_details');
+	},
     containers: function(frm, cdt, cdn) {
         if (frm.doc.is_return == 1){
             let row = locals[cdt][cdn];
