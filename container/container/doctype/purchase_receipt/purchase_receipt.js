@@ -68,6 +68,22 @@ frappe.ui.form.on('Purchase Receipt Item', {
 		let d=locals[cdt][cdn]
 		frappe.model.set_value(cdt,cdn,"qty",d.quantity);
 	},
+	warehouse: function(frm, cdt, cdn) {
+		let item = locals[cdt][cdn];
+		let new_warehouse = item.warehouse;
+		if (!new_warehouse) return;
+
+		// Update warehouse on all custom_container_qty_details rows
+		// that belong to this PR item line
+		(frm.doc.custom_container_qty_details || []).forEach(row => {
+			if (row.pr_item_name === item.name) {
+				frappe.model.set_value(
+					row.doctype, row.name, 'warehouse', new_warehouse
+				);
+			}
+		});
+		frm.refresh_field('custom_container_qty_details');
+	},
     containers: function(frm, cdt, cdn) {
         if (frm.doc.is_return == 1){
             let row = locals[cdt][cdn];
@@ -481,15 +497,16 @@ function show_container_dialog(frm) {
     let container_data = [];
     let sl_no = 1;
 
-    // Map accepted qty
+    // Map accepted qty per PR item row (keyed by item.name, not item_code)
+    // This correctly handles the same item appearing on multiple PR lines
     let item_qty_map = {};
     frm.doc.items.forEach(item => {
         if (item.is_containerized) {
-            item_qty_map[item.item_code] = flt(item.qty);
+            item_qty_map[item.name] = flt(item.qty);
         }
     });
 
-    // Build data rows
+    // Build data rows — one set per PR item line, keyed by item.name
     frm.doc.items.forEach(item => {
         if (!item.is_containerized) return;
         let no_of_containers = item.no_of_containers || 0;
@@ -498,14 +515,18 @@ function show_container_dialog(frm) {
         let qty_per_container = flt(item.qty) / no_of_containers;
         let uom = item.uom || item.stock_uom || 'Unit';
 
-        let existing = (frm.doc.custom_container_qty_details || []).filter(cd => cd.item_code === item.item_code);
+        // Filter existing saved rows by both item_code AND pr_item_name to avoid
+        // mixing rows from different lines that have the same item
+        let existing = (frm.doc.custom_container_qty_details || []).filter(
+            cd => cd.pr_item_name === item.name
+        );
 
-        if (
-            existing.length === no_of_containers 
-        ) {
+        if (existing.length === no_of_containers) {
             existing.forEach(row => {
                 container_data.push({
                     sl_no: sl_no++,
+                    pr_item_line: item.idx,
+                    pr_item_name: item.name,
                     item_code: row.item_code,
                     warehouse: row.warehouse,
                     container_ref: row.container_ref,
@@ -519,6 +540,8 @@ function show_container_dialog(frm) {
             for (let i = 0; i < no_of_containers; i++) {
                 container_data.push({
                     sl_no: sl_no++,
+                    pr_item_line: item.idx,
+                    pr_item_name: item.name,
                     item_code: item.item_code,
                     warehouse: item.warehouse,
                     container_ref: '',
@@ -531,38 +554,47 @@ function show_container_dialog(frm) {
         }
     });
 
-    // Columns
+    // Grid columns (in_list_view: 1) — kept minimal so Qty is always visible.
+    // Sl.No, Warehouse, Updated, Expiry Date are accessible by expanding a row.
     const fields = [
-        { label: "Sl.No", fieldname: "sl_no", fieldtype: "Int", read_only: 1, in_list_view: 1 },
-        { label: "Warehouse", fieldname: "warehouse", fieldtype: "Link", options: "Warehouse", read_only: 1, in_list_view: 1 },
-        { label: "Container Ref", fieldname: "container_ref", fieldtype: "Data", in_list_view: 1 },
-        { label: "Item", fieldname: "item_code", fieldtype: "Link", options: "Item", read_only: 1, in_list_view: 1 },
-        { label: "Qty", fieldname: "qty", fieldtype: "Float", in_list_view: 1, reqd: 1 },
-        { label: "UOM", fieldname: "uom", fieldtype: "Link", options: "UOM", in_list_view: 1, reqd: 1 },
-        { label: "Updated", fieldname: "updated", fieldtype: "Check", in_list_view: 1 },
-        { label: "Expiry Date", fieldname: "expiry_date", fieldtype: "Date", in_list_view: 1 }
+        { label: "Sl.No",          fieldname: "sl_no",          fieldtype: "Int",   read_only: 1, in_list_view: 1 },
+        { label: "Item",           fieldname: "item_code",      fieldtype: "Link",  options: "Item",      read_only: 1, in_list_view: 1 },
+        { label: "Warehouse",      fieldname: "warehouse",      fieldtype: "Link",  options: "Warehouse", in_list_view: 1 },
+        { label: "Container Ref",  fieldname: "container_ref",  fieldtype: "Data",                        in_list_view: 1 },
+        { label: "Qty",            fieldname: "qty",            fieldtype: "Float",                       in_list_view: 1, reqd: 1 },
+        { label: "UOM",            fieldname: "uom",            fieldtype: "Link",  options: "UOM",       in_list_view: 1, reqd: 1 },
+        { label: "Line #",         fieldname: "pr_item_line",   fieldtype: "Int",   read_only: 1, in_list_view: 0 },
+        { label: "Expiry Date",    fieldname: "expiry_date",    fieldtype: "Date",                        in_list_view: 0 },
+        { label: "Updated",        fieldname: "updated",        fieldtype: "Check",                       in_list_view: 0 },
+        { label: "PR Item Name",   fieldname: "pr_item_name",   fieldtype: "Data",  read_only: 1, in_list_view: 0 }
     ];
 
-    // Validation (we'll call it only in secondary_action)
+    // Validate per PR item line (pr_item_name), not per item_code
+    // This correctly handles the same item on multiple lines
     function validate(data) {
-        let item_total_qty = {};
+        let line_total_qty = {};
         data.container_details.forEach(row => {
-            item_total_qty[row.item_code] = (item_total_qty[row.item_code] || 0) + flt(row.qty);
+            let key = row.pr_item_name;
+            line_total_qty[key] = (line_total_qty[key] || 0) + flt(row.qty);
         });
-        for (let item_code in item_total_qty) {
-            let total = Math.round(flt(item_total_qty[item_code]) * 1e3) / 1e3;
-            let accepted = Math.round(flt(item_qty_map[item_code]) * 1e3) / 1e3;
+        for (let pr_item_name in line_total_qty) {
+            let total = Math.round(flt(line_total_qty[pr_item_name]) * 1e3) / 1e3;
+            let accepted = Math.round(flt(item_qty_map[pr_item_name]) * 1e3) / 1e3;
+            // Find item_code and line # for the error message
+            let ref_row = data.container_details.find(r => r.pr_item_name === pr_item_name);
+            let item_code = ref_row ? ref_row.item_code : pr_item_name;
+            let line_no = ref_row ? ref_row.pr_item_line : '';
 
             // Round both to 3 decimal places for safe comparison
             total = Math.round(total * 1e3) / 1e3;
             accepted = Math.round(accepted * 1e3) / 1e3;
 
             if (total > accepted) {
-                frappe.throw(`Qty exceeded for ${item_code}: Containers=${total}, Accepted=${accepted}`);
+                frappe.throw(`Qty exceeded for ${item_code} (Line ${line_no}): Containers=${total}, Accepted=${accepted}`);
                 return false;
             }
             if (total < accepted) {
-                frappe.throw(`Qty insufficient for ${item_code}: Containers=${total}, Accepted=${accepted}`);
+                frappe.throw(`Qty insufficient for ${item_code} (Line ${line_no}): Containers=${total}, Accepted=${accepted}`);
                 return false;
             }
         }
