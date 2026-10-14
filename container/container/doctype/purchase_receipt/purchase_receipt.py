@@ -27,6 +27,11 @@ def delete_entities(self):
 
     frappe.db.commit()  # Ensure rollback changes are committed
 
+def before_insert(self, method=None):
+    """Clear container qty details when a PR is duplicated."""
+    self.set("custom_container_qty_details", [])
+    self.custom_container_set_qty = 0
+
 def validate(self, method):
     """Validate Purchase Receipt before save"""
     validate_conversion_factor_not_zero(self)
