@@ -1,8 +1,10 @@
+// Currently unused: intended for the "Add Container / Batch No" row button in Purchase Receipt and Delivery Note (container_and_batch_selector() in their form JS), whose call sites are commented out.
+// Container / batch picker dialog for a single item row; creates or updates a
+// "Container and Batch Bundle" and passes the result to `callback`.
 container.ContainerBatchPackageSelector = class ContainerNoBatchBundleUpdate {
 	constructor(frm, item, callback) {
 		this.frm = frm;
 		this.item = item;
-		console.log("___________Custom1________________")
 		this.qty = item.qty;
 		this.callback = callback;
 		this.bundle =  this.item.custom_container_and_batch_bundle;
@@ -16,6 +18,7 @@ container.ContainerBatchPackageSelector = class ContainerNoBatchBundleUpdate {
 		let primary_label = this.bundle
 			? __('Update') : __('Add');
 
+		// FIXME: checks `batch_no` here but `custom_has_batch` in get_attach_field(); callers set `has_batch_no`.
 		if (this.item?.is_containerized && this.item?.batch_no) {
 			label = __('Container / Batch Nos');
 		}
@@ -336,6 +339,7 @@ container.ContainerBatchPackageSelector = class ContainerNoBatchBundleUpdate {
 		const { scan_serial_no, scan_batch_no } = this.dialog.get_values();
 
 		if (scan_serial_no) {
+			// FIXME: pushes `serial_no`, but the entries table field is `container`.
 			this.dialog.fields_dict.entries.df.data.push({
 				serial_no: scan_serial_no
 			});

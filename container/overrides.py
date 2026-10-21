@@ -4,11 +4,16 @@ from erpnext.stock.doctype.serial_no.serial_no import (
 	get_serial_nos
 )
 from frappe.utils import cint
+
+# hooks.py imports this module and patches SerialBatchCreation.set_serial_batch_entries with the
+# function below; the remaining functions are doc_events / before_migrate hooks.
+
 CONFIGURABLE_DECIMAL_TYPES = ("Currency", "Float", "Percent")
 DEFAULT_DECIMAL_LENGTH = 21
 DEFAULT_DECIMAL_PRECISION = 9
 
 # Configuration: Fields that should use custom precision instead of system precision
+# NOTE: currently not consulted; only CUSTOM_PRECISION_PATTERNS below is used.
 CUSTOM_PRECISION_FIELDS = {
 	# fieldname: precision
 	"conversion_factor": 6,  # UOM conversion factors need high precision
@@ -22,19 +27,22 @@ CUSTOM_PRECISION_FIELDS = {
 # These use pattern matching for fieldnames
 CUSTOM_PRECISION_PATTERNS = {
 	# pattern: precision
-	"conversion_factor": 6,  # Any field ending with _conversion_factor
+	"conversion_factor": 6,  # Any field ending with conversion_factor (only the key is used, not the value)
 	# "_rate": 4,  # Example: Any field ending with _rate
 }
 
+# FIXME: frappe.get_single runs at import time, so precision changes need a restart and import needs a DB connection
 sys_settings = frappe.get_single("System Settings")
 conversion_field_precision = cint(sys_settings.get("conversion_factor_precision", DEFAULT_DECIMAL_PRECISION))
 float_field_precision = cint(sys_settings.get("float_precision", DEFAULT_DECIMAL_PRECISION))
 
 def set_serial_batch_entries(self, doc):
-	# Overridden to update batch bundle with multiple entities based on voucher number.
-	# If entities are found for the given voucher_no, clear existing entries and set custom_has_entity flag.
-	# For each entity, append relevant details like qty, warehouse, and batch_no to entries.
-	# If no entities match, proceed with the default behavior of setting entries based on serial_nos or batches.
+	"""Patched SerialBatchCreation.set_serial_batch_entries: build bundle entries per Container when any match."""
+	# If containers are found for the voucher, existing entries are replaced by one entry per container;
+	# otherwise falls back to the standard serial_nos / batches behaviour.
+	# FIXME: reads fields that do not exist (doc.custom_has_container, entries.custom_container,
+	# Stock Entry.custom_required_item); `in ("Manufacture")` is a substring test, not tuple membership;
+	# `entities` is unbound when self has no batch_no.
 	try:
 		voucher_no = getattr(self, 'voucher_no', None)
 		if voucher_no:
@@ -50,29 +58,27 @@ def set_serial_batch_entries(self, doc):
 						entity_names=get_serial_nos(entity_se)
 						st_details = frappe.get_all('Stock Details', filters={'stock_entry': self.voucher_no},group_by="parent", pluck='parent')
 						if len(st_details)>0:
-							entity_list = [b for b in st_details if b]
 							entities = frappe.get_all('Container', filters={'name': ['in',entity_names]}, pluck='name')
 					elif transaction_type in ("Manufacture") and self.type_of_transaction == 'Inward':
 						entities = frappe.get_all('Container', filters={'item_code': self.item_code, 'purchase_document_no': self.voucher_no}, pluck='name')
-			# if Manufacture entry
+			# Manufacture consumption: one entry per container listed against the item
 			if self.voucher_type=="Stock Entry" and frappe.db.get_value('Stock Entry',self.voucher_no,"stock_entry_type") in ("Manufacture") and self.type_of_transaction == 'Outward':
-						stock_entry_doc=frappe.get_doc("Stock Entry",self.voucher_no)
-						manufacture_entity_list=[]
-						for item in stock_entry_doc.custom_required_item:
-							if self.item_code==item.item_code and item.entity_no:
-								# item_required_qty=item.consumed_qty
-								manufacture_entity_list.append({"entity":item.entity_no,"qty":item.consumed_qty,"batch_no":item.batch_no})
-						if len(manufacture_entity_list)>0:
-							doc.custom_has_container = 1
-							doc.entries.clear()
-							for entity_name in manufacture_entity_list:
-								container_doc = frappe.get_doc("Container", entity_name['entity'])
-								doc.append("entries", {
-									"custom_container": entity_name['entity'],
-									"qty": entity_name['qty'] * (-1 if self.type_of_transaction == "Outward" else 1),
-									"warehouse": container_doc.warehouse,
-									"batch_no": container_doc.batch_no
-								})
+				stock_entry_doc=frappe.get_doc("Stock Entry",self.voucher_no)
+				manufacture_entity_list=[]
+				for item in stock_entry_doc.custom_required_item:
+					if self.item_code==item.item_code and item.entity_no:
+						manufacture_entity_list.append({"entity":item.entity_no,"qty":item.consumed_qty,"batch_no":item.batch_no})
+				if len(manufacture_entity_list)>0:
+					doc.custom_has_container = 1
+					doc.entries.clear()
+					for entity_name in manufacture_entity_list:
+						container_doc = frappe.get_doc("Container", entity_name['entity'])
+						doc.append("entries", {
+							"custom_container": entity_name['entity'],
+							"qty": entity_name['qty'] * (-1 if self.type_of_transaction == "Outward" else 1),
+							"warehouse": container_doc.warehouse,
+							"batch_no": container_doc.batch_no
+						})
 			else:
 				if entities:
 					doc.custom_has_container = 1
@@ -85,8 +91,6 @@ def set_serial_batch_entries(self, doc):
 							"warehouse": container_doc.warehouse,
 							"batch_no": self.batch_no
 						})
-						# if self.type_of_transaction == "Outward" and transaction_type not in ("Material Transfer","Material Transfer for Manufacture"):
-						# 	container_doc.db_set('primary_available_qty', 0)
 				else:
 					if self.get("serial_nos"):
 						serial_no_wise_batch = frappe._dict({})
@@ -184,7 +188,6 @@ def _round_fields_with_custom_precision(doc):
 	
 	# Separate fields into custom precision and regular precision
 	precision_fieldnames = []
-	regular_precision_fieldnames = []
 	
 	for df in numeric_fields:
 		fieldname = df.fieldname
@@ -193,7 +196,7 @@ def _round_fields_with_custom_precision(doc):
 		# Check if this field is a conversion factor field
 		is_custom = False
 		
-		# Exact match
+		# Suffix match against CUSTOM_PRECISION_PATTERNS
 		for pattern in CUSTOM_PRECISION_PATTERNS:
 			if fieldname.endswith(pattern):
 				is_custom = True
@@ -203,10 +206,6 @@ def _round_fields_with_custom_precision(doc):
 			precision_fieldnames.append({"name":fieldname,"precision":field_precision,"conversion_factor":1})
 		else:
 			precision_fieldnames.append({"name":fieldname,"precision":field_precision,"conversion_factor":0})
-	
-	# Round regular fields using standard precision
-	# if regular_precision_fieldnames:
-	# 	doc.round_floats_in(doc, regular_precision_fieldnames)
 	
 	# Round precision fields individually with their specific precision
 	for field in precision_fieldnames:
@@ -221,15 +220,12 @@ def _round_fields_with_custom_precision(doc):
 
 def get_field_precision_for_fieldname(precision,conversion_factor):
 	"""
-	Get precision for a specific fieldname from configuration.
-	
-	:param fieldname: Name of the field
+	Return the precision to round a field to.
+
+	:param precision: The field's own precision (DocField/Property Setter); wins when set
+	:param conversion_factor: 1 for conversion-factor-like fields, else 0
 	:return: Precision value
 	"""
-	# # Exact match
-	# if fieldname in CUSTOM_PRECISION_FIELDS:
-	# 	return CUSTOM_PRECISION_FIELDS[fieldname]
-	
 	if precision and precision!='':
 		float_precision=precision
 	else:
@@ -244,6 +240,7 @@ def get_field_precision_for_fieldname(precision,conversion_factor):
 
 
 def add_conversion_factor_precision_field():
+    """before_migrate hook: create the System Settings.conversion_factor_precision custom field if missing."""
     if not frappe.db.exists("Custom Field", "System Settings-conversion_factor_precision"):
         frappe.get_doc({
             "doctype": "Custom Field",
@@ -261,6 +258,7 @@ def add_conversion_factor_precision_field():
 
 
 def set_conversion_factor_precision():
+	"""before_migrate hook: apply conversion_factor_precision to every *conversion_factor* Float DocField."""
 	# Step 1: Get precision from System Settings
 	precision = frappe.db.get_single_value("System Settings", "conversion_factor_precision")
 	if not precision:

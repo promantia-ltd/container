@@ -7,6 +7,7 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Container Reconciliation', {
+    // Lock down the grids/menu and offer "Add Containers" (draft) or "Create Stock Reconciliation" (submitted)
     refresh: function(frm) {
 		if(frm.doc.docstatus==1){
 			cur_frm.page.btn_secondary.hide()
@@ -42,6 +43,7 @@ frappe.ui.form.on('Container Reconciliation', {
 			})
 		}
 	},
+	// Block saving if any listed container is reserved for a work order
 	before_save: function(frm) {
 		$.each(frm.doc.items, function (idx,item) {
 			frappe.call({
@@ -60,12 +62,14 @@ frappe.ui.form.on('Container Reconciliation', {
 			})
 		})
 	},
+	// Reload the current containers for the item/warehouse
 	warehouse: function(frm) {
 		add_serial_nos(frm.doc.item_code,frm)
 		if(frm.doc.item_code){
 			add_current_serial_nos(frm)
 		}
 	},
+    // Reset both tables and reload the current containers
     item_code: function(frm) {
 		frm.clear_table("items");
 		frm.clear_table("new_container_nos");
@@ -77,6 +81,7 @@ frappe.ui.form.on('Container Reconciliation', {
 	}
 });
 
+// Fill the items table with the containers currently holding stock in the warehouse
 function add_current_serial_nos(frm){
 	frm.clear_table("items");
 	frappe.call({
@@ -111,6 +116,7 @@ function add_current_serial_nos(frm){
 	})
 }
 
+// Add the "Add Containers" button, which previews new container names into new_container_nos
 function add_serial_nos(item,frm){
 	if(frm.doc.item_code && frm.doc.warehouse && frm.doc.docstatus==0){
 		frm.add_custom_button(__('Add Containers'), function () {
@@ -172,7 +178,7 @@ function add_serial_nos(item,frm){
 frappe.ui.form.on('Container Reconciliation Items', {
 	stock_qty(frm,cdt,cdn) {
 		var item=locals[cdt][cdn];
-		// your code here
+		// Existing containers: keep qty non-negative and recompute secondary qty and the reconciled total
 		if(item.stock_qty<0){
 			item.stock_qty=0
 			cur_frm.refresh_field("items")

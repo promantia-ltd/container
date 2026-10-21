@@ -1,10 +1,9 @@
 // Copyright (c) 2024, Mohan and contributors
 // For license information, please see license.txt
 
-// Copyright (c) 2023, Mohan and contributors
-// For license information, please see license.txt
-
 frappe.ui.form.on('Container', {
+	// Refresh the "days to expiry" counters, which go stale as days pass.
+	// FIXME: saves the document on load whenever the stored day counts differ from today's.
 	onload: function(frm) {
 		var today = frappe.datetime.get_today();
 		if (frm.doc.base_expiry_date && frm.doc.expiry_date){
@@ -24,6 +23,7 @@ frappe.ui.form.on('Container', {
 			}
 		}
 	},
+	// Show "<status> / <consumption status>" when any stock entry has consumed from this container
 	refresh: function(frm) {
         if (frm.doc.delivery_document_no && frm.doc.delivery_document_type) {
             return;
@@ -44,6 +44,7 @@ frappe.ui.form.on('Container', {
         }
     },
 
+	// Recompute the days-to-expiry counters when either expiry date is edited
 	base_expiry_date:function(frm){
 		calculate_base_and_room_temp_in_days(frm)
 	},

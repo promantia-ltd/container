@@ -1,3 +1,9 @@
+// Full copy of Frappe v15 core frappe.ui.form.MultiSelectDialog
+// (frappe/public/js/frappe/form/multi_select_dialog.js), loaded globally via
+// app_include_js so it replaces the core class on every desk page.
+// The ONLY intended difference from core is in get_results() (Container
+// handling, used by the "Change Containers" dialogs in Stock Entry and
+// Delivery Note). Keep the rest in sync with core when upgrading Frappe.
 frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 	constructor(opts) {
 		/* Options: doctype, target, setters, get_query, action, add_filters_group, data_fields, primary_action_label, columns */
@@ -608,19 +614,21 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 		this.results = [];
 		if (results.length) {
 			results.forEach((result) => {
-				if (this.doctype=="Container" && this.selected_all_containers.includes(result.name)){
-                    result.checked = 0;
-                    result.selected="Yes";
-                    this.results.push(result);
-                    }
-            	else if (this.doctype=="Container"){
-                    result.checked = 0;
-                    result.selected="No";
-                    this.results.push(result);
-                    }
-				else if (this.doctype!="Container"){
+				// Custom (container app): for the Container doctype, tag each result with
+				// selected = "Yes"/"No" depending on whether it is already in
+				// `selected_all_containers` (an option every Container caller must pass).
+				// Other doctypes keep the core behaviour.
+				if (this.doctype == "Container" && this.selected_all_containers.includes(result.name)) {
 					result.checked = 0;
-                    this.results.push(result);
+					result.selected = "Yes";
+					this.results.push(result);
+				} else if (this.doctype == "Container") {
+					result.checked = 0;
+					result.selected = "No";
+					this.results.push(result);
+				} else if (this.doctype != "Container") {
+					result.checked = 0;
+					this.results.push(result);
 				}
 			});
 		}

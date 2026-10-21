@@ -1,26 +1,14 @@
 // Copyright (c) 2020, seabridge_app and contributors
 // For license information, please see license.txt
 frappe.ui.form.on('Stock Reconciliation', {
+	// Hide the Cancel button on submitted documents
 	refresh(frm){
 		if(frm.doc.docstatus==1){
 		cur_frm.page.btn_secondary.hide()
 		}
-		//commented some code as need it is a part of hotset, will be used if required
-		// frappe.db.get_value("Hotset Settings","Hotset Settings", "allow_reconciliation",(s)=>{
-		// 	if(s.allow_reconciliation==1){
-		// 	frm.fields_dict['items'].grid.get_field('item_code').get_query = function(frms, cdt, cdn) {
-			
-		// 		return {
-		// 			filters: {
-		// 				'has_serial_no': 0
-		// 			}	
-		// 		};
-		// 	}
-		// }
-		// })
-		
-
 	},
+	// Containerized items must go through a Container Reconciliation (unless allowed in Container Settings);
+	// when linked to one, refresh qty and containers from it
 	before_save(frm){
 		if(!frm.doc.custom_container_reconciliation){
 			frappe.db.get_value("Container Settings","Container Settings", "allow_stock_reconciliation",(s)=>{
@@ -61,6 +49,7 @@ frappe.ui.form.on('Stock Reconciliation', {
 
 	}
 	},
+	// New doc created from a Container Reconciliation: fill the single item row from it
 	onload(frm){
 		if(frm.doc.custom_container_reconciliation && frm.doc.__islocal){
 			frm.clear_table("items");
@@ -87,6 +76,7 @@ frappe.ui.form.on('Stock Reconciliation', {
 	
 })
 frappe.ui.form.on('Stock Reconciliation Item', {
+	// Block containerized items unless Container Settings allows direct stock reconciliation
 	item_code(frm,doctype,name){
 		frappe.db.get_value("Container Settings","Container Settings", "allow_stock_reconciliation",(s)=>{
 			if(s.allow_stock_reconciliation==0){

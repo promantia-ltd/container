@@ -1,10 +1,12 @@
 import frappe
 
-# Populate Jobcard Tables with Filtered Work Order Data Based on Operations
+# NOTE: the after_insert doc_event for this is commented out in hooks.py, so it currently never runs.
 def after_insert(self, method):
+    """Copy the Work Order's required items and reserved containers for this Job Card's operation."""
     wo = frappe.get_doc("Work Order", self.work_order)
 
     self.custom_items_required = []
+    # FIXME: resets `container_information` but rows are appended to `custom_container_information`
     self.container_information = []
 
     operation_items = set()

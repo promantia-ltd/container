@@ -2,6 +2,7 @@ from frappe import _
 
 
 def get_data(data):
+	"""Item dashboard override (standard ERPNext layout plus Container under Traceability)."""
 	return {
 		"heatmap": True,
 		"heatmap_message": _("This is based on stock movement. See {0} for details").format(

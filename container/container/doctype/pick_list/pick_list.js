@@ -7,8 +7,9 @@ frappe.ui.form.on('Pick List', {
                 filters: {'item': child.item_code}
             }
         });
+        // Render the containers table built server-side in calculate_the_total_standard_rate
         if (frm.doc.custom_containers_information_text)
-        var wrapper = frm.get_field("custom_containers_information").$wrapper.html(
+        frm.get_field("custom_containers_information").$wrapper.html(
             `			<table class="table table-bordered table-hover">
             <tr class="text-muted">
                 <th style="background-color: var(--scrollbar-track-color);  cursor:pointer; width="0.1%">No.</th>
