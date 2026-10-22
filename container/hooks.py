@@ -212,6 +212,7 @@ doc_events = {
         ],
     },
     "Purchase Receipt": {
+        "before_insert": "container.container.doctype.purchase_receipt.purchase_receipt.before_insert",
         "validate": "container.container.doctype.purchase_receipt.purchase_receipt.validate",
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
         "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
@@ -229,6 +230,9 @@ doc_events = {
     },
     "Pick List": {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
+    },
+    "Container": {
+        "on_trash": "container.container.doctype.container.container.prevent_delete_if_linked",
     },
     "Delivery Note": {
         "before_insert": "container.container.doctype.delivery_note.delivery_note.copy_set_warehouse_to_items",
