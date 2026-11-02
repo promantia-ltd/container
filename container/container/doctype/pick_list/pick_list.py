@@ -3,6 +3,7 @@ from container.container.doctype.stock_entry.stock_entry import reserve_once
 
 
 def calculate_the_total_standard_rate(doc, method):
+    """validate: assign containers to each containerized location row and build the containers HTML table."""
     try:
         used = []
         count = 1
@@ -62,6 +63,7 @@ def calculate_the_total_standard_rate(doc, method):
 
 
 def assign_containers(item, used, work_order=None):
+    """Pick containers for a location row, skipping ones already used or reserved for other work orders."""
     container_no, primary_available_qty, primary_available_qty_used = [], [], []
     remaining_qty = ""
     query = None
@@ -94,6 +96,7 @@ def assign_containers(item, used, work_order=None):
 
 
 def get_containers(item, warehouse):
+    """Active containers with stock for item in warehouse, oldest first."""
     query = frappe.db.sql(
         """
         select name,primary_available_qty,expiry_date
@@ -108,6 +111,7 @@ def get_containers(item, warehouse):
 
 
 def container_pick(query, required_qty, used, reserved_containers):
+    """Take containers in order until required_qty is covered; remaining_qty is "<container>:<leftover qty>" of the last one."""
     container_no, primary_available_qty, primary_available_qty_used = [], [], []
     remaining_qty = ""
     for data in query:

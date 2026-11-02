@@ -1,4 +1,5 @@
 frappe.ui.form.on('Item', {
+    // Containerized items need exactly one Primary and one Secondary UOM, and at most one default BOM UOM
     before_save:function(frm){
         let primaryCount = 0;
         let secondaryCount = 0;

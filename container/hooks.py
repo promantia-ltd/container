@@ -1,12 +1,7 @@
-import erpnext.controllers.status_updater as _standard_updator
+from container.monkey_patches import apply as _apply_monkey_patches
 
-from container.api import StatusUpdaterCustom as _custom_updator
-
-from container import overrides as _custom_overrided_logic_override_file
-from erpnext.stock.serial_batch_bundle import SerialBatchCreation
-
-#For updating entities to the Serial and Batch Bundle entries
-SerialBatchCreation.set_serial_batch_entries = _custom_overrided_logic_override_file.set_serial_batch_entries
+# ERPNext function replacements live in monkey_patches.py; also applied via before_request / before_job below
+_apply_monkey_patches()
 
 app_name = "container"
 app_title = "Container"
@@ -15,9 +10,8 @@ app_description = "Container For Procurement"
 app_email = "mohan.k@promantia.com"
 app_license = "mit"
 
-
-_standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_crossed_error
-
+before_migrate = ["container.overrides.add_conversion_factor_precision_field",
+                  "container.overrides.set_conversion_factor_precision"]
 
 # required_apps = []
 
@@ -61,7 +55,10 @@ fixtures = [
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/container/css/container.css"
-app_include_js = "/assets/container/js/multi_select_dialog.js"
+app_include_js = [
+    "/assets/container/js/multi_select_dialog.js",
+    "/assets/container/js/global_customization.js"
+]
 
 # include js, css files in header of web template
 # web_include_css = "/assets/container/css/container.css"
@@ -183,7 +180,11 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
+
 doc_events = {
+    "*": {
+        "validate": "container.overrides.auto_round_floats_globally"
+    },
     "Stock Entry": {
         "on_submit": [
             "container.api.on_submit",
@@ -197,10 +198,13 @@ doc_events = {
         ],
     },
     "Purchase Receipt": {
+        "before_insert": "container.container.doctype.purchase_receipt.purchase_receipt.before_insert",
+        "validate": "container.container.doctype.purchase_receipt.purchase_receipt.validate",
         "before_submit": "container.container.doctype.purchase_receipt.purchase_receipt.container_creation",
         "on_submit": ["container.container.doctype.purchase_receipt.purchase_receipt.on_submit",
                       "container.container.doctype.purchase_receipt.purchase_receipt.update_container_details_from_pr",
-                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_precision"],
+                      "container.container.doctype.purchase_receipt.purchase_receipt.update_container_precision"
+                      ],
         "on_cancel": "container.container.doctype.purchase_receipt.purchase_receipt.on_cancel",
         # "validate": "container.container.doctype.purchase_order.purchase_order.calculate_the_total_standard_rate",
     },
@@ -213,7 +217,11 @@ doc_events = {
     "Pick List": {
         "validate": "container.container.doctype.pick_list.pick_list.calculate_the_total_standard_rate",
     },
+    "Container": {
+        "on_trash": "container.container.doctype.container.container.prevent_delete_if_linked",
+    },
     "Delivery Note": {
+        "before_insert": "container.container.doctype.delivery_note.delivery_note.copy_set_warehouse_to_items",
         "on_submit": ["container.container.doctype.delivery_note.delivery_note.container_processing",
                       "container.container.doctype.delivery_note.delivery_note.update_containers_on_return"],
         "on_cancel": ["container.container.doctype.delivery_note.delivery_note.update_containers_on_cancel",
@@ -224,6 +232,7 @@ doc_events = {
             "container.container.doctype.delivery_note.delivery_note.update_dn_details_container",
             ]
     },
+    
     # This commented code may require in future, so pls do not remove it.
     # "Job Card": {
     #     "after_insert": "container.container.doctype.job_card.job_card.after_insert"
@@ -279,12 +288,13 @@ override_doctype_dashboards = {
 
 # Request Events
 # ----------------
-# before_request = ["container.utils.before_request"]
+# hooks.py is not imported when hooks come from the Redis cache, so re-apply the ERPNext replacements
+before_request = ["container.monkey_patches.apply"]
 # after_request = ["container.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["container.utils.before_job"]
+before_job = ["container.monkey_patches.apply"]
 # after_job = ["container.utils.after_job"]
 
 # User Data Protection

@@ -1,4 +1,4 @@
-__version__ = "0.0.1"
+__version__ = "2.0.0"
 
 import erpnext.manufacturing.doctype.bom.bom
 from container.container.doctype.bom.bom import get_bom_material_detail

@@ -29,6 +29,7 @@ class Container(Document):
 	def before_insert(self):
 		self.initial_qty=self.primary_available_qty
 
+	# FIXME: never sets "Delivered"; the list view derives Delivered / Partially Delivered itself
 	def set_status(self):
 		if not self.warehouse or self.status == "Inactive" :
 			self.status = "Inactive"
@@ -70,6 +71,7 @@ class Container(Document):
 		self.item_name = item.item_name
 		self.brand = item.brand
 		self.warranty_period = item.warranty_period
+		# FIXME: elif means secondary qty is not clamped when primary qty was also negative
 		if self.primary_available_qty<0:
 			self.primary_available_qty = 0
 		elif self.secondary_available_qty<0:
@@ -79,7 +81,7 @@ class Container(Document):
 		secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':self.item_code,'uom_type':'Secondary UOM'},fields={'*'})
 		if secondary_uom_list:
 			secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
-			#recalculating the secondary available qty based on primary qty
+			# Secondary qty is always derived from primary qty; it is never edited independently
 			self.secondary_available_qty=self.primary_available_qty/secondary_uom_conversion
 			if secondary_uom_list[0]['uom']:
 				self.secondary_uom=secondary_uom_list[0]['uom']
@@ -95,13 +97,34 @@ class Container(Document):
 			rt_expiry_date_in_days=frappe.utils.data.date_diff(self.expiry_date, today)
 			self.rt_expiry_date_in_days=rt_expiry_date_in_days
 	
+	# NOTE: identical to module-level prevent_delete_if_linked (also wired via doc_events); both run.
+	def on_trash(self):
+		if self.purchase_document_no and self.purchase_document_type:
+			docstatus = frappe.db.get_value(
+				self.purchase_document_type, self.purchase_document_no, "docstatus"
+			)
+			if docstatus == 1:
+				frappe.throw(
+					_("Container {0} cannot be deleted because it is linked to submitted {1} {2}. "
+					  "Cancel the linked document first.").format(
+						frappe.bold(self.name),
+						self.purchase_document_type,
+						frappe.utils.get_link_to_form(
+							self.purchase_document_type,
+							self.purchase_document_no
+						)
+					),
+					title=_("Deletion Not Allowed")
+				)
+
 	def set_raw_containers_for_fg(self):
+		"""For containers created by a Stock Entry, record the source containers per item in used_containers."""
 		if self.purchase_document_type == "Stock Entry" and not self.used_containers:
 			containers = []
 
-			#get_stock_entry_containers is a function that returns container information
 			get_containers = get_stock_entry_containers(self)
 
+			# Stock Entry Detail.containers is a comma-separated list, often with a trailing comma
 			for container in get_containers:
 				if container.get("containers") and container["containers"].endswith(","):
 					container["containers"] = container["containers"][:-1]
@@ -119,10 +142,32 @@ class Container(Document):
 						'containers': all_containers
 					})
 
+def prevent_delete_if_linked(doc, method=None):
+	"""Block deletion of any Container linked to a submitted stock transaction."""
+	if doc.purchase_document_no and doc.purchase_document_type:
+		docstatus = frappe.db.get_value(
+			doc.purchase_document_type, doc.purchase_document_no, "docstatus"
+		)
+		if docstatus == 1:
+			frappe.throw(
+				_("Container {0} cannot be deleted because it is linked to submitted {1} {2}. "
+				  "Cancel the linked document first.").format(
+					frappe.bold(doc.name),
+					doc.purchase_document_type,
+					frappe.utils.get_link_to_form(
+						doc.purchase_document_type,
+						doc.purchase_document_no
+					)
+				),
+				title=_("Deletion Not Allowed")
+			)
+
+
 def get_stock_entry_containers(self):
 	return frappe.db.get_all("Stock Entry Detail",{'parent':self.purchase_document_no},['item_code','t_warehouse','containers'])
 
 def update_all_containers():
+    """Background job: recompute actual_container_qty and consumption_status for every Container."""
     frappe.flags.in_test = True  # optional safety bypass
 
     containers = frappe.get_all("Container", fields=["name", "primary_available_qty", "initial_qty"])
@@ -165,6 +210,7 @@ def update_all_containers():
 
 @frappe.whitelist()
 def update_actual_container_qty():
+    """Enqueue update_all_containers on the long queue."""
     frappe.enqueue(
         "container.container.doctype.container.container.update_all_containers",
         queue="long",

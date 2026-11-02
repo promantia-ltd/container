@@ -13,9 +13,11 @@ from container.container.doctype.purchase_receipt.purchase_receipt import get_au
 
 class SlitContainers(Document):
 	def on_submit(self):
+		"""For each row: post a Manufacture entry, create the sub containers and empty the parent container."""
 		all_comment=""
 		for item in self.get("slitted_containers_details"):
 			#Create manufacture stock entry
+			# FIXME: create_manufature_entry covers all rows itself, so N rows create N duplicate Stock Entries.
 			self.create_manufature_entry(item)
 			#Create sub containers
 			comment,containers=create_sub_containers(self,item)
@@ -30,6 +32,7 @@ class SlitContainers(Document):
 					container_doc.db_set("secondary_available_qty",0)
 					container_doc.add_comment('Comment',"This Container Slitted In To :"+comment)
 					for container in containers :
+						# FIXME: `or "{}"` applies after literal_eval, so an empty dict becomes a str and .keys() fails.
 						qty_each=ast.literal_eval(item.qty_for_each_container) or "{}"
 						if container in qty_each.keys():
 							container_doc.append("slitted_details",{
@@ -48,6 +51,7 @@ class SlitContainers(Document):
 				frappe.db.rollback()
 		frappe.msgprint("Slitted Containers : "+all_comment)
 	def create_manufature_entry(self,item):
+		"""Submit a Manufacture Stock Entry consuming each parent container and producing its sub containers."""
 		try:
 			container_doc=frappe.get_doc("Container",item.container)
 			stock_entry_doc=frappe.get_doc(dict(doctype = 'Stock Entry',
@@ -90,6 +94,7 @@ class SlitContainers(Document):
 
 @frappe.whitelist()
 def get_virtual_naming_series(container,no_of_containers):
+	"""Preview the sub-container names slitting will create, without consuming the naming series."""
 	renamed_container = []
 	#mandatory to pass .# here 
 	container+="-.#"
@@ -101,6 +106,7 @@ def get_virtual_naming_series(container,no_of_containers):
 
 @frappe.whitelist()
 def set_container_qty(sub_containers):
+	"""Return the dialog's per-sub-container qty as str({container: qty}); stored in qty_for_each_container."""
 	sub_container_and_qty_each={}
 	sub_containers=json.loads(sub_containers)
 	for sub in sub_containers['slit_container']:
@@ -111,6 +117,7 @@ def set_container_qty(sub_containers):
 
 @frappe.whitelist()
 def validate_container_qty(sub_containers,qty):
+	"""Throw unless the sub container qtys add up to the parent qty (compared as whole numbers)."""
 	total_sub_qty=0
 	sub_containers=json.loads(sub_containers)
 	for sub in sub_containers['slit_container']:
@@ -123,6 +130,7 @@ def validate_container_qty(sub_containers,qty):
 		frappe.throw(_("Available qty is this "+str(qty)+" ,but the total of sub container qty is less than the available qty ("+str(total_sub_qty)+")"))
 
 def get_auto_virtual_container_nos(container_no_series, qty):
+	"""Read-only counterpart of get_auto_container_nos: predict the next qty names without updating tabSeries."""
 	container_nos = []
 	count=0
 	for i in range(cint(qty)):
@@ -174,6 +182,7 @@ def getseries(current,digits):
 	return ("%0" + str(digits) + "d") % current
 
 def create_sub_containers(self,item):
+	"""Create the slit sub containers for one row; returns (HTML links comment, container names)."""
 	comment=""
 	containers, renamed_container = [], []
 	qty_for_each_container=item.qty_for_each_container or "{}"
@@ -233,6 +242,7 @@ def create_sub_containers(self,item):
 		frappe.throw("An error occurred while creating container,please contact the administrator.For more info check the Error Log")
 
 def validate_virtual_and_created_containers(qty_for_each_container,container_list):
+	"""Throw if the names actually allocated differ from the previewed (virtual) names the qtys were keyed on."""
 	for container in container_list:
 		if container in qty_for_each_container.keys():
 			continue
@@ -240,9 +250,11 @@ def validate_virtual_and_created_containers(qty_for_each_container,container_lis
 		    frappe.throw("Virtual containers do not match the created containers. Please reset the containers by clicking the 'Split Container' button.")
 
 def copy_aging_history(self,item,container_doc):
+	"""Append the parent container's latest Aging History row to the new sub container."""
 	prev_trans_details=None
 	prev_trans_name=frappe.get_all('Aging History', filters={'parent': item.container}, order_by='idx DESC', limit=1)
 	if prev_trans_name:
+		# FIXME: passes the get_all result (a list of dicts) as the docname instead of prev_trans_name[0].name.
 		prev_trans_details=frappe.get_doc("Aging History",prev_trans_name)
 	if prev_trans_details:
 		#copy the latest aging history
@@ -258,12 +270,11 @@ def copy_aging_history(self,item,container_doc):
 			"shelf_life_in_days":prev_trans_details.shelf_life_in_days,
 			"description":"Slitted from "+self.doctype+" ref No:"+self.name
 			})
-	else:
-		return container_doc
 	return container_doc
 
 @frappe.whitelist()
 def get_container_filter(doctype, txt, searchfield, start, page_len, filters):
+	"""Link query: active containers of the item with stock and no reserved Stock Details row."""
 	item_code = str(filters['item_code'])
 	return frappe.db.sql("""select distinct not_reserved_container.container from (select tc.name as container,(select count(`tabStock Details`.is_reserved) from `tabStock Details` 
 		where `tabStock Details`.parent=container and `tabStock Details`.is_reserved=1) as cnt

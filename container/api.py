@@ -5,10 +5,16 @@ from container.container.doctype.stock_entry.stock_entry import partially_reserv
 from frappe import _
 from frappe.exceptions import ValidationError
 
+# Container tracks raw material per physical unit (roll/drum/etc.).
+#
+# NOTE: The dynamic aging / expiry engine below (aging_history, base vs room-temperature
+# expiry) only runs for items with `dynamic_aging` set. No item currently has it enabled,
+# so these code paths are dormant; they are documented but intentionally left unchanged.
 
 container_doctype="Container"
 
 def on_submit(self,method=None):
+    """Stock Entry on_submit hook: create FG containers for Manufacture and update aging on transfers."""
     if not self.system_generated and self.stock_entry_type=="Manufacture":
         no_of_containers=0
         qty=0
@@ -22,15 +28,16 @@ def on_submit(self,method=None):
             if item_doc.is_containerized:
                 for item in self.get("items"):
                     if item.is_finished_item:
-                        #getting number of containers for fg_item
                         no_of_containers=item.no_of_containers
+                        # FIXME: uses row.qty (in the row UOM) rather than transfer_qty/stock qty for FG container qty
                         qty=item.qty
                 if not no_of_containers and not qty:
+                    # FIXME: "Stock Entry Details" is not a doctype (should be "Stock Entry Detail") and get_list returns a list
                     finished_item=frappe.db.get_list("Stock Entry Details",filters={"is_finished_item":1},fields=["qty","no_of_containers"],as_dict=True)
                     no_of_containers=finished_item.no_of_containers
                     qty=finished_item.qty
                 fg_item=1
-                # get the least expiry date from among the raw items
+                # FG containers inherit the earliest expiry among the consumed raw-material containers
                 get_min_expiry_date=least_expiry_date(self)
                 comment,containers=create_containers(self,item_doc,qty,get_min_expiry_date,fg_item,no_of_containers)
                 frappe.db.sql("""update `tabStock Entry Detail` set containers=%s where parent=%s and is_finished_item=1""",(containers,self.name))
@@ -39,20 +46,10 @@ def on_submit(self,method=None):
             frappe.log_error("An error occurred: {}".format(str(e)))
             frappe.throw("An error occurred. Please contact the administrator.For more info check the Error Log")
         else:
-            #it will execute after successful run of try block
             update_expiry_date(self)
     elif self.stock_entry_type=="Material Transfer" or self.stock_entry_type=="Material Transfer for Manufacture":
-        #update the aging history when the container transfer from one warehouse to another
+        # Moving containers between warehouses changes their storage temperature, so re-age them
         update_expiry_date(self)
-
-def get_finished_item_row(self):
-		finished_item_row = None
-		if self.purpose in ("Manufacture", "Repack"):
-			for d in self.get("items"):
-				if d.is_finished_item:
-					finished_item_row = d
-
-		return finished_item_row
 
 def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_containers=1):
     comment=""
@@ -124,7 +121,9 @@ def create_containers(self,item_doc,qty,get_min_expiry_date,fg_item=0,no_of_cont
         frappe.db.rollback()
         frappe.log_error("An error occurred: {}".format(str(e)))
         frappe.throw("An error occurred while Creating Container . Please contact the administrator.For more info check the Error Log")
+
 def update_expiry_date(self):
+    """Recompute expiry dates of consumed/transferred containers for dynamic_aging items."""
     submited_trans_date=frappe.utils.now_datetime() or datetime.now()
     for item in self.get("items"):
         item_doc=frappe.get_doc("Item",item.item_code)
@@ -167,14 +166,13 @@ def update_expiry_date(self):
             elif not item.containers and not item.is_finished_item:
                 frappe.throw("Containers Not assigned for the item "+item.item_code+" at row "+str(item.idx))
 
-            
+
 def get_base_room_temp_expiry_date_and_shelf_life(latest_aging_details,item_doc,submited_trans_date):
+    """Return (shelf_life_days, base_expiry, room_temp_expiry) aged from the last Aging History row."""
     try:
-        #here datetime is the field name in aging history
+        # `datetime` is the Aging History fieldname of the previous transaction time
         prev_trans_date=latest_aging_details.datetime
-        #calculate the duriation in hours
         trans_duriation_in_hours=(submited_trans_date - prev_trans_date).total_seconds() / 3600
-        #get the room temperature from item master
         rt_aging_rate=get_rt_temperature(item_doc)
         prev_shelf_life_in_hour=(latest_aging_details.shelf_life_in_days)*24
         shelf_life,base_expiry_date,rt_expity_date=get_shelf_life_base_rt_expiry_date(prev_shelf_life_in_hour,rt_aging_rate,trans_duriation_in_hours,submited_trans_date,latest_aging_details)
@@ -183,11 +181,11 @@ def get_base_room_temp_expiry_date_and_shelf_life(latest_aging_details,item_doc,
     return shelf_life,base_expiry_date,rt_expity_date
     
 def get_shelf_life_base_rt_expiry_date(prev_shelf_life_in_hour,rt_aging_rate,duriation_in_hours,trans_date,latest_aging_details):
-    #for new shelf life consider the latest aging history aging rate (Base)
+    # Remaining shelf life is consumed at the aging rate of the warehouse it was stored in since the last row
     new_shelf_life_hours=prev_shelf_life_in_hour-(float(latest_aging_details.aging_rate)*duriation_in_hours)
     new_shelf_life_in_days=new_shelf_life_hours/24
     new_base_expiry_date=trans_date+timedelta(new_shelf_life_in_days)
-    #consider the room temperatrure aging rate (Room)
+    # Room-temperature expiry: the same remaining life, consumed at the room-temperature aging rate
     new_rt_temperature_in_days=(new_shelf_life_hours/rt_aging_rate)/24
     new_rt_expity_date=trans_date+timedelta(new_rt_temperature_in_days)
     return new_shelf_life_in_days,new_base_expiry_date,new_rt_expity_date
@@ -204,17 +202,18 @@ def get_rt_temperature(item_doc):
 def get_target_warehouse(self,item_code):
     target_warehouse=self.to_warehouse
     for item in self.get("items"):
-        if self.stock_entry_type in ["Manufacture"] and item.is_finished_item:      #for Manufacture entry the raw material targer warehouse was empty
-            target_warehouse=item.t_warehouse                                       #Consider the Fg_item Warehouse
+        # Manufacture raw-material rows have no target warehouse, so the FG row's warehouse is used
+        if self.stock_entry_type in ["Manufacture"] and item.is_finished_item:
+            target_warehouse=item.t_warehouse
         elif self.stock_entry_type in ["Material Transfer for Manufacture","Material Transfer"] and item.item_code==item_code:
             target_warehouse=item.t_warehouse
     return target_warehouse
 
-#Api for Calculate least expiry date
 def least_expiry_date(self):
+    """Return a status dict with the earliest base/room expiry among the entry's raw-material containers."""
     try:
         api_responce={}
-        all_container_list=get_expiry_date_containers(self) #get raw meterials with expirt_date
+        all_container_list=get_expiry_date_containers(self)
         if all_container_list:
             status,message,min_base_expiry_date,min_room_expiry_date,shelf_life=get_base_room_least_expiry_date(all_container_list)
             api_responce={
@@ -232,7 +231,9 @@ def least_expiry_date(self):
     except Exception as e:
         frappe.log_error("An error occurred: {}".format(str(e)))
     return api_responce
+
 def get_expiry_date_containers(self):
+    """Return raw-material container names in the entry that have aging history and an expiry date."""
     all_container_list=[]
     for item in self.get("items"):
         if not item.is_finished_item and item.containers:
@@ -243,13 +244,14 @@ def get_expiry_date_containers(self):
                     if conatiner_doc.aging_history and conatiner_doc.expiry_date:
                         all_container_list.append(container)
     return all_container_list
+
 def get_base_room_least_expiry_date(all_container_list):
     base_expiry_date=[]
     rt_expiry_date=[]
     min_base_expiry_date,min_rt_expiry_date=None,None
     status,message="",""
     for container in all_container_list:
-        get_present_expiry_date=get_container_life(container)   #call api to get now expiry date
+        get_present_expiry_date=get_container_life(container)
         if get_present_expiry_date["base_expiry_date"] and get_present_expiry_date["rt_expiry_date"]:
             base_expiry_date.append( get_present_expiry_date["base_expiry_date"])
             rt_expiry_date.append(get_present_expiry_date["rt_expiry_date"])
@@ -263,13 +265,15 @@ def get_base_room_least_expiry_date(all_container_list):
         status="SUCCESS"
         message="Successfully fetched Expiry Date"
         min_rt_expiry_date=min(rt_expiry_date)
-        #min base temperature consider the rt_expiry_date index to match base 
+        # Take the base expiry from the same container that has the earliest room-temperature expiry
         min_base_expiry_date=base_expiry_date[rt_expiry_date.index(min_rt_expiry_date)]
         shelf_life=get_present_expiry_date["shelf_life"]
     return status,message,min_base_expiry_date,min_rt_expiry_date,shelf_life
 
+# FIXME: the trans_date default is evaluated once at import time, not per call
 @frappe.whitelist()
 def get_container_life(container,aging_rate=None,trans_date=frappe.utils.now_datetime() or datetime.now()):
+    """Return the container's current shelf life and expiry dates, optionally with an overridden aging rate."""
     try:
         shelf_life,base_expiry_date,rt_expity_date=None,None,None
         container_doc=frappe.get_doc(container_doctype,container)
@@ -304,14 +308,13 @@ def get_container_life(container,aging_rate=None,trans_date=frappe.utils.now_dat
 
     return responce
 
-# Cron job to update Daily Expiry Date
 @frappe.whitelist()
 def daily_update_expiry_date():
+    """Daily scheduler job: re-age dynamic_aging containers and refresh their latest Aging History row."""
     has_partially_reserved = frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
     if not has_partially_reserved:
         containers=frappe.db.sql("""select tsn.name from `tabContainer` tsn ,`tabItem` ti where tsn.item_code=ti.name and ti.dynamic_aging=1""",as_dict=True)
         for container in containers:
-            container_doc,prev_trans_name,prev_trans_details,existing_text=None,None,None,None
             container_doc=frappe.get_doc(container_doctype,container.name)
             prev_trans_name=frappe.get_all("Aging History", filters={'parent': container.name}, order_by='idx DESC', limit=1)
             prev_trans_details=frappe.get_doc("Aging History",prev_trans_name[0]["name"])
@@ -345,6 +348,7 @@ def daily_update_expiry_date():
 
 from erpnext.controllers.status_updater import StatusUpdater
 
+# Only limits_crossed_error is used: hooks.py monkey-patches it onto erpnext's StatusUpdater.
 class StatusUpdaterCustom(StatusUpdater):
     def limits_crossed_error(self, args, item, qty_or_amount):
         """Raise exception for limits crossed"""
@@ -362,6 +366,7 @@ class StatusUpdaterCustom(StatusUpdater):
         ):
             return
 
+        # FIXME: silently skips every qty/amount over-receipt check for Purchase Receipt / Purchase Invoice
         elif self.doctype in ["Purchase Invoice", "Purchase Receipt"]:
             return
 
