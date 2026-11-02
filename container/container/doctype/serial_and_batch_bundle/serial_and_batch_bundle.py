@@ -71,6 +71,6 @@ class CustomSerialandBatchBundle(SerialandBatchBundle):
 		# Stamp each container with the batch it is booked against in this bundle
 		if self.has_batch_no:
 			for entry in self.entries:
-				if entry.custom_container:
+				if entry.get("custom_container"):
 					frappe.db.set_value("Container", entry.custom_container, "batch_no", entry.batch_no)
 			frappe.db.commit()
