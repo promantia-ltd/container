@@ -7,16 +7,20 @@ from frappe.utils import cint
 
 class ContainerReconciliation(Document):
 	def on_cancel(self):
+		"""Restore each existing container's qty to its pre-reconciliation value."""
+		# FIXME: containers created from new_container_nos (in Stock Reconciliation on_submit) are not reversed.
 		for item in self.items:
 			if item.container:
 				container = frappe.get_doc("Container", item.container)
-				
+
 				container.primary_available_qty = item.current_qty or 0
+				# FIXME: secondary_available_qty is set from the primary-UOM current_qty without conversion.
 				container.secondary_available_qty = item.current_qty or 0
 				container.save()
 
 @frappe.whitelist()
 def get_new_containers(item,count):
+	"""Return (next `count` container names from the item's series, {stock_uom, secondary_uom})."""
 	doc=frappe.get_doc('Item',item)
 	stock_uom = frappe.db.get_value(
 			"Item", item, "stock_uom")
@@ -26,6 +30,8 @@ def get_new_containers(item,count):
 		hash_count=series.count('#')
 		prefix=series.split(".#")
 		serial_no_list=[]
+		# Names are only previewed here; tabSeries is advanced in Stock Reconciliation on_submit.
+		# FIXME: the series is read without a lock, so concurrent reconciliations can preview the same names.
 		Series = frappe.qb.DocType("Series")
 		if frappe.db.get_value("Series", str(prefix[0]), "name", order_by="name") is None:
 			frappe.qb.into(Series).insert(str(prefix[0]), 0).columns("name", "current").run()
@@ -39,6 +45,7 @@ def get_new_containers(item,count):
 
 @frappe.whitelist()
 def get_containers(item,warehouse):
+	"""Return (containers with stock in warehouse, UOM conversion info, Bin actual_qty) for the item."""
 	stock_uom= frappe.db.get_value(
 			"Item", item, "stock_uom")
 	secondary_uom_conversion=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item,'uom_type':"Secondary UOM"},fields={'*'})
@@ -56,6 +63,7 @@ def get_containers(item,warehouse):
 
 @frappe.whitelist()
 def create_stock_reconciliation(docname):
+	"""Called by the 'Create Stock Reconciliation' button; builds an unsaved doc only, the client opens the new form itself."""
 	serialized_reco_doc=frappe.get_doc('Container Reconciliation',docname)
 	reco_doc=frappe.get_doc(dict(doctype = 'Stock Reconciliation',
 						    company=serialized_reco_doc.company,
@@ -64,6 +72,7 @@ def create_stock_reconciliation(docname):
 	
 @frappe.whitelist()
 def check_reservations(container,warehouse):
+	"""Return False if the container has stock reserved (reserved_qty > 0.1) in the warehouse."""
 	reserved_stock=frappe.db.get_all("Stock Details",filters={'parenttype':'Container','parent':container,'warehouse':warehouse,'reserved_qty':['>',0.1]},fields={'*'})
 	if reserved_stock!=[]:
 		return False

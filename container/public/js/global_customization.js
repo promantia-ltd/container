@@ -1,5 +1,8 @@
+// Global desk customisation (loaded on every page via app_include_js):
+// pressing Enter in a child-table grid input (or any input inside an open
+// modal) commits the value and moves focus to the same field in the next row.
 frappe.after_ajax(() => {
-    // Function to apply Enter key navigation
+    // Bind the delegated Enter-key handler on one grid body / modal wrapper.
     function enableEnterNavigation($wrapper) {
         function handleEnterKey(fieldname) {
             return function (e) {
@@ -8,8 +11,8 @@ frappe.after_ajax(() => {
                     e.stopPropagation();
 
                     let $current = $(this);
-                    let currentValue = $current.val();
 
+                    // Commit the typed value before moving away from the cell.
                     $current.trigger('input').trigger('change');
 
                     let $currentRow = $current.closest('[data-idx]');
@@ -25,6 +28,8 @@ frappe.after_ajax(() => {
                                 $nextInput.focus().select();
                             } else {
                                 let $nextCell = $nextRow.find('.grid-static-col[data-fieldname="' + fieldname + '"]');
+                                // Input not rendered yet: click the static cell to make the grid
+                                // render its editable input, then focus it once it exists.
                                 if ($nextCell.length > 0) {
                                     $nextCell.click();
                                     setTimeout(() => {
@@ -36,6 +41,7 @@ frappe.after_ajax(() => {
                                 }
                             }
                         } else {
+                            // Last row: just leave the field.
                             $current.blur();
                         }
                     }, 100);
@@ -45,6 +51,7 @@ frappe.after_ajax(() => {
             };
         }
 
+        // Namespaced off/on so repeated calls from the observer don't stack handlers.
         $wrapper.off('keydown.global_enter');
         $wrapper.on('keydown.global_enter', 'input[data-fieldname]', function (e) {
             let fieldname = $(this).attr('data-fieldname');
@@ -52,6 +59,7 @@ frappe.after_ajax(() => {
         });
     }
 
+    // Grids and dialogs are rendered dynamically, so re-bind on every DOM change.
     const observer = new MutationObserver(() => {
         $('.modal.in, .frappe-control[data-fieldtype="Table"] .grid-body').each(function () {
             enableEnterNavigation($(this));

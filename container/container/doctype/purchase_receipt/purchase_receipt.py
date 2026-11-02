@@ -1,18 +1,16 @@
-import math
 import json
 import frappe
 from datetime import datetime, timedelta
 from frappe import _
 from frappe.model.naming import make_autoname
-from frappe.utils import (
-    cint
-)
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 container_no_doc="Container"
 
 def delete_entities(self):
+    """Delete the Containers created by this PR and clear each item's `containers` field."""
     for item in self.get("items"):
+        # `containers` holds newline-separated Container names
         if item.containers:
             for entity_name in filter(None, item.containers.split("\n")):
                 # Stale names copied from another PR (e.g. via duplicate) must not delete that PR's containers
@@ -28,11 +26,12 @@ def before_insert(self, method=None):
     """Clear all container-related data when a PR is duplicated."""
     self.set("custom_container_qty_details", [])
     self.custom_container_set_qty = 0
+    # FIXME: this also clears item.containers on returns, which reference the original PR's containers
     for item in self.get("items"):
         item.containers = ""
 
 def validate(self, method):
-    """Validate Purchase Receipt before save"""
+    """Hook: validate Purchase Receipt before save."""
     validate_conversion_factor_not_zero(self)
     validate_item_warehouses(self)
 
@@ -55,13 +54,13 @@ def validate_conversion_factor_not_zero(self):
             )
 
 def on_submit(self, method):
+    """Hook: copy each containerized item's container list onto its Stock Ledger Entry."""
     try:
         for item in self.get("items"):
-            # Handle containerized items
             if frappe.db.get_value(
                 "Item", {"name": item.item_code}, "is_containerized"
             ):
-                # Update Stock Ledger Entry
+                # FIXME: get_doc with filters takes only the first matching SLE for this row
                 sle = frappe.get_doc(
                     "Stock Ledger Entry",
                     {
@@ -75,7 +74,6 @@ def on_submit(self, method):
 
     except Exception as e:
         frappe.db.rollback()
-        # Rollback created entities if an exception occurs
         delete_entities(self)
         frappe.log_error(
             frappe.get_traceback(), f"Error in on_submit for GRN {self.name}"
@@ -87,6 +85,8 @@ def on_submit(self, method):
         )
         
 def update_container_details_from_pr(doc, method):
+    """Hook: apply the qty/warehouse/reference entered in the container dialog to the Containers."""
+    # item_code -> {"all": container names in creation order, "used": names already updated}
     updated_containers_map = {}
 
     for row in doc.custom_container_qty_details:
@@ -109,7 +109,7 @@ def update_container_details_from_pr(doc, method):
                     "uom",
                 )
         
-        # if inwarded stock is not in primary UOM handle all the cases
+        # Container qty is stored in the primary UOM; convert if entered in the secondary UOM
         if row.uom==primary_uom:
             qty=row.qty
         elif row.uom==secondary_uom:
@@ -117,8 +117,9 @@ def update_container_details_from_pr(doc, method):
         else:
             frappe.throw(f"UOM {row.uom} not matching with the primary or secondary UOM of the item {item_code}")
 
+        # FIXME: containers are matched by item_code + creation order, not by row.pr_item_name,
+        # so the same item on two PR lines can get the other line's quantities
         if item_code not in updated_containers_map:
-            # Get all containers for the item and PR
             containers = frappe.get_all(
                 "Container",
                 filters={
@@ -157,10 +158,10 @@ def update_container_details_from_pr(doc, method):
         container_doc.custom_container_reference = row.container_ref
         container_doc.status = "Active"
         container_doc.save(ignore_permissions=True)
-        
 
 
 def update_container_precision(doc, method):
+    """Hook: make the line's container qtys sum exactly to its stock_qty."""
     if not doc.is_return:
         for item in doc.items:
             if not item.is_containerized:
@@ -178,10 +179,9 @@ def update_container_precision(doc, method):
                 primary_qty = frappe.db.get_value("Container", container_id, "primary_available_qty") or 0
                 total_primary_qty += primary_qty
 
-            # Calculate difference
             diff = item.stock_qty - total_primary_qty
 
-            # Adjust last container if needed
+            # The last container absorbs the rounding difference left by splitting the qty
             if abs(diff) > 0 and container_ids:
                 last_container_id = container_ids[-1]
                 last_container = frappe.get_doc("Container", last_container_id)
@@ -192,14 +192,18 @@ def update_container_precision(doc, method):
 
 
 def container_creation(self, method):
+    """Hook (before_submit): create Inactive Containers per containerized line; on returns, reduce them."""
     if self.is_return == 0:
         container_list = []
+        # bobbin_weight is never read; the loop is kept because int(no_of_containers) can raise
         bobbin_weight=[]
         for item in self.get("items"):
             item_doc = frappe.get_doc("Item", item.item_code)
+            # Containers left from an earlier attempt are recreated
+            # FIXME: delete_entities commits inside before_submit
             if item.containers:
                 delete_entities(self)
-                
+
             if item.bobbin_weight:
                         bobbin_weight.extend(item.bobbin_weight.split("\n"))
             else:
@@ -242,7 +246,9 @@ def container_creation(self, method):
                     )
                     item.containers = container_nos
                     container_list = container_nos.split("\n")
-                    # Added the below if else condition in order handle the item without secondary UOM at item master
+                    # secondary_uom_value / secondary_avail_qty are not used below
+                    # FIXME: the container qty below divides by no_of_containers and secondary_uom_cf,
+                    # which fails when the item has no secondary UOM or no_of_containers is 0
                     if secondary_uom:
                         secondary_uom_value = secondary_uom
                         secondary_avail_qty = (
@@ -298,6 +304,7 @@ def container_creation(self, method):
                                 },
                             )
                         container_doc.save(ignore_permissions=True)
+                    # FIXME: commits inside before_submit, so containers persist even if submit later fails
                     frappe.db.commit()
                     bobbin_weight = []
                 except Exception as e:
@@ -337,7 +344,8 @@ def update_containers_on_full_return(self):
                 # Calculate the original qty per container
                 original_qty_per_container = original_pr_item["stock_qty"] / original_pr_item["no_of_containers"]
 
-                # Handle negative return quantities by converting them to positive
+                # Return qty is negative
+                # FIXME: item.qty is in the transaction UOM but container qty is in the stock UOM
                 returned_qty = abs(item.qty)
 
                 # Initialize a variable to track the cumulative container qty
@@ -383,8 +391,9 @@ def update_containers_on_full_return(self):
         frappe.db.rollback()
         frappe.log_error(f"Error updating containers on return: {str(e)}")
         frappe.throw("Failed to update containers on Purchase Return. Check the error log.")
-        
+
 def calculate_base_and_room_erpiry_date(item_doc,w_temperature):
+    """Return (base_expiry_date, rt_expiry_date, aging_rate, creation_date) for a dynamic-aging item."""
     if item_doc.dynamic_aging:
         creation_date = frappe.utils.now_datetime() or datetime.now()
         base_aging_rate,rt_aging_rate=None,None
@@ -410,7 +419,9 @@ def calculate_base_and_room_erpiry_date(item_doc,w_temperature):
         aging_rate=get_aging_rate(w_temperature,item_doc)
         return base_expiry_date,rt_expiry_date,aging_rate,creation_date
     return None, None, None, None
+
 def get_aging_rate(w_temperature,item_doc):
+    """Return the item's aging rate at the warehouse temperature; throw if not configured."""
     aging_rate=None
     for temperature in item_doc.get("temperature_characteristics"):
          if temperature.temperature==w_temperature.temperature:
@@ -418,6 +429,7 @@ def get_aging_rate(w_temperature,item_doc):
     if not aging_rate:
         frappe.throw(f"The "+str(w_temperature.name)+" warehouse temperature "+str(w_temperature.temperature)+"not specified in the Item Master,Please contact the administrator.")
     return aging_rate
+
 def revert_containers_on_return_cancel(self):
     """Revert container quantities when a Purchase Receipt Return is cancelled.
     Restores the qty that was reduced during the return submit."""
@@ -452,6 +464,7 @@ def revert_containers_on_return_cancel(self):
                 original_pr_item["stock_qty"] / original_pr_item["no_of_containers"]
             )
 
+            # FIXME: item.qty is in the transaction UOM but container qty is in the stock UOM
             qty_to_restore = abs(item.qty)
             total_restored_qty = 0
 
@@ -461,6 +474,8 @@ def revert_containers_on_return_cancel(self):
 
                 container_doc = frappe.get_doc("Container", container_no)
 
+                # FIXME: restores up to the average qty per container, not what the return actually
+                # took from this container, and sets secondary qty equal to primary qty
                 restore_now = min(qty_to_restore - total_restored_qty, original_qty_per_container)
 
                 new_primary = flt(container_doc.primary_available_qty) + restore_now
@@ -486,6 +501,7 @@ def revert_containers_on_return_cancel(self):
 
 
 def on_cancel(self,method=None):
+     """Hook: block cancel if containers moved or are reserved, else zero them out."""
      if self.is_return:
         revert_containers_on_return_cancel(self)
         return
@@ -500,15 +516,18 @@ def on_cancel(self,method=None):
                     frappe.throw('Document cannot be cancelled as the Container '+container+' has been transfered to another warehouse')
                 elif len(frappe.db.get_all("Stock Details",filters={'parent': container,'reserved_qty':['>',0]},fields={'name'}))>0:
                     frappe.throw('Document cannot be cancelled as the Container has some qty reserved')
+                # FIXME: extends with the whole line once per container, so each container is listed N times
                 container_no_list.extend(item_container.split("\n"))
      for container in container_no_list:
         sp_doc=frappe.get_doc(container_no_doc,container)
         sp_doc.db_set("primary_available_qty", 0)
         sp_doc.db_set("secondary_available_qty", 0)
+        # FIXME: "Cancelled" is not a valid Container status option
         sp_doc.db_set("status","Cancelled")
         frappe.db.commit()
-        
+
 def get_auto_container_nos(container_no_series, qty):
+    """Return `qty` new unique container names from the series, newline-separated."""
     container_nos = []
     for i in range(cint(qty)):
         container_nos.append(get_new_container_number(container_no_series))
@@ -517,13 +536,16 @@ def get_auto_container_nos(container_no_series, qty):
 
 
 def get_new_container_number(series):
+    # Retry until the generated name does not already exist
     sr_no = make_autoname(series, "Container")
     if frappe.db.exists("Container", sr_no):
         sr_no = get_new_container_number(series)
     return sr_no
 
+# Only called from the old set_quantity_for_container_nos dialog (removed); appears unused
 @frappe.whitelist()
 def get_uom_qty_and_expiry_date(container_no_list):
+    """Return per-container purchase UOM, qty in purchase UOM, expiry date, updated flag and warehouse."""
     uom=[]
     qty=[]
     expiry_date=[]
@@ -553,12 +575,14 @@ def get_uom_qty_and_expiry_date(container_no_list):
                 frappe.throw('Please mention the UOM conversion for '+purchase_uom+' at the Item '+item_code)
         else:
             frappe.throw("Please mention the Purchase UOM for the Item "+item_code)
-            
-    return uom,qty,expiry_date,updated,warehouse
-    
 
+    return uom,qty,expiry_date,updated,warehouse
+
+
+# Only called from the old set_quantity_for_container_nos dialog (removed); appears unused
 @frappe.whitelist()
 def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
+    """Validate dialog container qtys against line qtys and write them to the Containers."""
     try:
         sp_quantity = json.loads(quantity)
         items = json.loads(items)
@@ -623,7 +647,7 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
                         if sp_['item_code'] == item_code and sp_["warehouse"] == container_warehouse
                     )
 
-                    # Validation: total quantity in the same warehouse must match
+                    # FIXME: docstatus arrives as a string, so `docstatus == 1` is never true
                     if current_qty_in_warehouse != expected_qty_in_warehouse and docstatus == 1:
                         frappe.throw(_("The total quantity for item {0} in warehouse {1} should match the expected quantity {2}. Currently entered: {3}")
                                      .format(item_code, container_warehouse, expected_qty_in_warehouse, current_qty_in_warehouse))
@@ -697,8 +721,10 @@ def set_quantity_container_no(quantity, items, docstatus, docname, is_return):
         frappe.throw(f"An error occurred: {str(e)}")
 
 
+# No caller found in container or hotset_customizations; appears unused
 @frappe.whitelist()
 def button_hide(quantity, name):
+    """Set PR.button_hide to 1 once every container row is marked updated."""
     sp_quantity = json.loads(quantity)
     check = any(sp['updated'] == 0 for sp in sp_quantity['container_no_qty'])
     button_hide_value = 0 if check else 1
@@ -707,6 +733,7 @@ def button_hide(quantity, name):
 
 @frappe.whitelist()
 def set_total_qty(bobbin_type,items):
+    """Deduct the selected bobbin weights from each PR item's qty and store the per-container bobbin data."""
     uom_list=[]
     total_weight=0
     bobbin_wt=""
@@ -745,22 +772,17 @@ def set_total_qty(bobbin_type,items):
 
 @frappe.whitelist()
 def get_containers(no_of_containers,name):
+    """Return placeholder labels "Container 1".."Container N" for the bobbin dialog (`name` is unused)."""
     container_nos=[]
-    containers=""
     no_of_containers=int(no_of_containers)
     for value in range(no_of_containers):
         container_nos.append("Container "+str(value+1))
-    last_container=len(container_nos)-1
-    for container in range(len(container_nos)):
-        if last_container !=container:
-            containers+=container_nos[container]+"\n"
-        else:
-            containers+=container_nos[container]
-    # frappe.db.set_value("Purchase Receipt Item",name,"dummy_containers",containers)
     return container_nos
 
+# Only called from the old set_quantity_for_container_nos dialog (removed); appears unused
 @frappe.whitelist()
 def save_container_reference_number(quantity, docstatus):
+    """Save container reference and qty from the dialog without activating the Containers."""
     try:
         sp_quantity = json.loads(quantity)
 
@@ -777,7 +799,7 @@ def save_container_reference_number(quantity, docstatus):
                 {"parent": sp['item_code'], "uom": sp['uom']},
                 "conversion_factor"
             )
-            
+
             secondary_uom_cf = frappe.db.get_value(
                         "UOM Conversion Detail",
                         {"parent": sp['item_code'], "uom_type": "Secondary UOM"},
@@ -803,6 +825,7 @@ def save_container_reference_number(quantity, docstatus):
 
 
 def get_item_account_wise_additional_cost(purchase_document):
+	"""Monkey-patched over ERPNext's version (see hooks.py); also distributes manually allocated LCV charges."""
 	landed_cost_vouchers = frappe.get_all(
 		"Landed Cost Purchase Receipt",
 		fields=["parent"],

@@ -34,15 +34,7 @@ frappe.ui.form.on('Delivery Note Item', {
 			frappe.model.set_value(cdt, cdn, 'warehouse', frm.doc.set_warehouse);
 		}
 	},
-	// item_code:function(frm,cdt,cdn){
-	// 	let d=locals[cdt][cdn]
-	// 	frappe.db.get_value("Item",{"name" :d.item_code},"*",(db)=>{
-	// 		frappe.model.set_value(cdt,cdn,"is_containerized",db.is_containerized);
-	// 		frappe.model.set_value(cdt,cdn,"custom_has_batch",db.custom_has_batch);
-	// 	});
-    //     // This is currently on hold (May be useful in future)
-    //     // container_and_batch_selector(frm,cdt,cdn)
-	// },
+    // "Add Containers" row button: pick containers in a dialog and set container_list / qty on the row
     add_containers:function(frm,cdt,cdn){
         if (frm.doc.docstatus ==0){
             let data=locals[cdt][cdn];
@@ -50,8 +42,7 @@ frappe.ui.form.on('Delivery Note Item', {
             $.each(frm.doc.items,function(idx, row){
                 if (row.container_list){
                     let str_containers=row.container_list;
-                    if (str_containers.endsWith(",")){        // container_and_batch_selector(frm,cdt,cdn)
-
+                    if (str_containers.endsWith(",")){
                         str_containers=str_containers.slice(0,-1);
                     }
                     all_containers.push(...str_containers.split(","));
@@ -116,9 +107,9 @@ frappe.ui.form.on('Delivery Note Item', {
     }
 })
 
+// Currently unused (its call site was removed); kept for the planned container/batch selector.
 function container_and_batch_selector(frm,cdt,cdn){
 	let item = locals[cdt][cdn];
-		let me = this;
 		let path = "assets/container/js/utils/container_batch_selector.js";
 
 		frappe.db.get_value("Item", item.item_code, ["custom_has_batch", "is_containerized"])

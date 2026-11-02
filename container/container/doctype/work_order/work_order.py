@@ -1,5 +1,4 @@
 import frappe
-from frappe import _
 from frappe.utils import (
 	flt,cstr
 )
@@ -28,18 +27,14 @@ class ItemHasVariantError(frappe.ValidationError):
 class SerialNoQtyError(frappe.ValidationError):
 	pass
 
-from erpnext.manufacturing.doctype.work_order.work_order import WorkOrder
 from container.container.doctype.stock_entry.stock_entry import reserve_once
 
-# precision = frappe.get_cached_value('Container Settings', None, 'container_precision')
+# Decimal places used when reserving container quantities (fixed; not read from Container Settings)
 precision=4
-if not precision:
-    precision = 4
-else:
-     precision = int(precision)   
 
 @frappe.whitelist()
 def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
+    """Reserve FIFO Active containers of `item` in `warehouse` against `work_order` until item_qty is covered."""
     container_no_set = []
     comment = ""
     reserve_qty_str=""
@@ -101,10 +96,8 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                                 'consumed_qty': 0
                             })
                             
-                        #available_qty fully reserved so remaining_qty is set to 0
+                        # The whole available qty is reserved, so nothing remains in the container
                         remaining_qty = 0
-                        if remaining_qty < 0:
-                            remaining_qty = 0
 
                         reserve_qty_str = "  Reserved Qty : " + cstr(flt(sp_doc.primary_available_qty, precision))
                         sp_doc.db_set('primary_available_qty', remaining_qty)
@@ -153,6 +146,7 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
                             stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_doc_name)
                             stock_detail_doc.db_set("is_reserved", 1)
                         else:
+                            # FIXME: sets reserved_qty=1 where the sibling branch sets is_reserved=1
                             sp_doc.append('stock_details', {
                                 'work_order': work_order,
                                 'warehouse': warehouse,
@@ -176,11 +170,13 @@ def reserve_qty(item, warehouse, item_qty, work_order, container_reserved_used):
 		
 @frappe.whitelist()
 def add_comment(doctype,docname,comment):
+	"""Add a plain Comment to the given document."""
 	wo_doc = frappe.get_doc(doctype,docname)
 	wo_doc.add_comment('Comment',comment)
 
 @frappe.whitelist()
 def check_stock(item, warehouse, item_qty, container_used, work_order):
+	"""Return (enough_stock, container_names) for item in warehouse, smallest containers first."""
 	qty = float(item_qty)
 	container_used = json.loads(container_used)
 	used = []
@@ -227,6 +223,7 @@ def check_stock(item, warehouse, item_qty, container_used, work_order):
 
 		
 def used_containers(container_used):
+	"""Flatten a list of container-name lists."""
 	used = []
 	for val in container_used:
 		for each in val:
@@ -235,8 +232,11 @@ def used_containers(container_used):
 	
 
 
+# FIXME: writes non-existent field transfered_qty_in_tertiary_uom, and raises IndexError for
+# containerized items without a Secondary UOM.
 @frappe.whitelist()
 def update_reserved_containers(work_order):
+    """Rebuild the Work Order's custom_work_order_containers_reserved table from Stock Details."""
     work_order_doc=frappe.get_doc("Work Order",work_order)
     for item in work_order_doc.required_items:
         primary_uom=frappe.db.get_value("Item", {"item_code": item.item_code}, "stock_uom")
@@ -283,6 +283,7 @@ def update_reserved_containers(work_order):
 
 @frappe.whitelist()
 def delete_reserved_containers(work_order):
+    """Delete all Work Order Containers Reserved rows of the Work Order."""
     reserved_details=frappe.db.get_all("Work Order Containers Reserved",filters={"parent":work_order},fields={'*'})
     if len(reserved_details)>0:
           for detail in reserved_details:
@@ -290,8 +291,10 @@ def delete_reserved_containers(work_order):
                 wo_sn.db_set('docstatus',2)
                 frappe.delete_doc("Work Order Containers Reserved",detail.name)
 
+# FIXME: only releases partial-mode reservations (reserved_qty > 0); is_reserved flags are left set.
 @frappe.whitelist()
 def unreserve_stock(work_order):
+    """Release reserved container qty for the Work Order, cancel linked Stock Entries and refresh the table."""
     unreserved_count=0
     comment="Unreserved Qty:<br>"
     stock_entry_ids = set()
