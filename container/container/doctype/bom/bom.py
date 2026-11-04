@@ -1,10 +1,9 @@
 
 import frappe
-from frappe import _ 
-from frappe.utils import cint, cstr, flt, today
+from frappe.utils import cint, cstr, flt
 
-#This custom method monkey patching the standard BOM class method
-#To set the default uom in BOM Item
+# container/__init__.py monkey-patches BOM.get_bom_material_detail with this function so that
+# new BOM Items default to the Item's UOM flagged "default_uom_in_bom" (and its conversion factor).
 @frappe.whitelist()
 def get_bom_material_detail(self, args=None):
     """Get raw material details like uom, desc and rate."""
@@ -68,6 +67,7 @@ def get_bom_material_detail(self, args=None):
     
 
 def validate(doc,method):
+    """BOM validate hook: default unset custom_sequence_order to the row's position (1-based)."""
     sequence_order=1
     for item in doc.items:
         if item.custom_sequence_order==0:

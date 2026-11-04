@@ -1,5 +1,6 @@
 frappe.listview_settings['Container'] = {
 	add_fields: ["item_code", "warehouse", "expiry_date", "delivery_document_type","status","primary_available_qty", "initial_qty"],
+	// Branch order matters: delivery state overrides expiry, which overrides the stored status
 	get_indicator: (doc) => {
 		if (doc.delivery_document_type && doc.primary_available_qty <=0) {
 			return [__("Delivered"), "green", "delivery_document_type,is,set"];

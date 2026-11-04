@@ -5,6 +5,7 @@ from frappe.utils import flt
 
 @frappe.whitelist()
 def get_containers(selected_containers, item):
+    """Return (comma-separated container names, their total primary available qty) for the selection dialog."""
     selected_containers = json.loads(selected_containers)
     item = json.loads(item)
     total_qty = 0
@@ -19,18 +20,20 @@ def get_containers(selected_containers, item):
 
 
 def copy_set_warehouse_to_items(doc, method):
+    """before_insert: copy the header Set Warehouse onto every item row."""
     if doc.set_warehouse:
         for item in doc.items:
             item.warehouse = doc.set_warehouse
 
 
 def container_processing(doc, method):
+    """on_submit: validate and consume qty from each item's containers (non-return DNs only)."""
     if not doc.is_return:
         for item in doc.items:
             if item.is_containerized:
                 container_list = item.container_list
                 container_no_list = container_list.split(",")
-                # chek containers are valid and qty is available at the containers
+                # check containers are valid and qty is available at the containers
                 validate_container_qty(container_no_list=container_no_list,
                                     item_code=item.item_code,
                                     required_qty=item.stock_qty,
@@ -40,6 +43,7 @@ def container_processing(doc, method):
                                 delivery_note_docname=doc.name)
 
 def update_containers_on_return(doc, method):
+    """on_submit of a return DN: move qty back from consumed_qty to sales_return_qty on the original DN's stock details."""
     if not doc.is_return:
         return
 
@@ -65,6 +69,7 @@ def update_containers_on_return(doc, method):
                         sd.sales_return_qty = (sd.sales_return_qty or 0) + return_qty
 
                         container.primary_available_qty += return_qty
+                        # FIXME: secondary_available_qty is increased by a primary-UOM qty (no conversion factor applied).
                         container.secondary_available_qty += return_qty
                         container.db_set("status", "Active")
 
@@ -89,9 +94,10 @@ def update_containers_on_return(doc, method):
                 container.save(ignore_permissions=True)
 
 def revert_containers_on_return_cancel(doc, method):
+    """on_cancel of a return DN: undo update_containers_on_return."""
     if not doc.is_return:
         return
-      
+
     for item in doc.items:
         return_qty = abs(item.qty)
         container_ids = (item.container_list or "").split(",")
@@ -136,12 +142,14 @@ def revert_containers_on_return_cancel(doc, method):
 
 
 def validate_containers(doc,method):
+    """Require a container list on every containerized item of a non-return DN."""
     if not doc.is_return:
         for item in doc.items:
             if item.is_containerized and not item.container_list:
                 frappe.throw('Container List is mandatory for Item '+item.item_code)
 
 def validate_container_qty(container_no_list, item_code, required_qty, warehouse):
+    """Throw if the listed containers hold too little qty, or if a trailing container is not needed."""
     total_qty = 0.0
     required_qty = flt(required_qty, 6)
 
@@ -155,7 +163,7 @@ def validate_container_qty(container_no_list, item_code, required_qty, warehouse
             container_qty = flt(validate_container(container, item_code, warehouse), 6)
             total_qty = flt(total_qty + container_qty, 6)
 
-    # Force rounding margin
+    # Treat differences within 0.0001 as float noise
     if abs(total_qty - required_qty) <= 0.0001:
         total_qty = required_qty
 
@@ -165,6 +173,8 @@ def validate_container_qty(container_no_list, item_code, required_qty, warehouse
 
 
 def validate_container(container, item_code, warehouse):
+    """Return the container's primary available qty, throwing if it is missing, foreign or (near) empty."""
+    # Items flagged ignore_scrap_qty leave 0.1 in each container as scrap, so it must hold more than that.
     if frappe.db.get_value("Item",
                            {"name": item_code}, "ignore_scrap_qty") == 1:
         scrap_qty = 0.1
@@ -197,6 +207,7 @@ def validate_container(container, item_code, warehouse):
 
 
 def update_containers(container_no_list, required_qty, delivery_note_docname):
+    """Consume required_qty from the containers in list order, recording stock details and comments."""
     qty_to_be_assigned = required_qty
     for container in container_no_list:
         if container:
@@ -223,8 +234,6 @@ def update_containers(container_no_list, required_qty, delivery_note_docname):
                 'conversion_factor')
             secondary_available_qty = container_pending_qty/secondary_uom_conversion_value
             container_doc.db_set('secondary_available_qty', secondary_available_qty)
-            # container_doc.db_set('delivery_document_type', "Delivery Note")
-            # container_doc.db_set('delivery_document_no', delivery_note_docname)
             # add consumption details in stock details of Container
             update_stock_detail_table(container=container, consumed_qty=container_consumed_qty, delivery_note_docname=delivery_note_docname)
             # add a comment in container doc to show how much is consumed
@@ -256,6 +265,7 @@ def update_stock_detail_table(container, consumed_qty, delivery_note_docname):
 
 
 def update_containers_on_cancel(doc, method):
+    """on_cancel: give consumed qty back to each container of the DN."""
     for item in doc.items:
         if item.is_containerized:
             container_list = item.container_list
@@ -266,6 +276,7 @@ def update_containers_on_cancel(doc, method):
 
 
 def update_containers_after_cancel_dn(container, delivery_note):
+    """Zero the container's stock-detail consumption for this DN and add the qty back to the container."""
     stock_detail_docname = frappe.db.get_value(
             "Stock Details",
             {"parent": container, "delivery_note": delivery_note},
@@ -290,6 +301,7 @@ def update_containers_after_cancel_dn(container, delivery_note):
         container_doc.db_set('consumption_status', "")
 
 def add_containers_before_save(doc,method):
+    """validate: auto-fill each containerized item's container_list FIFO (oldest container first)."""
     try:
         for item in doc.items:
             warehouse=item.warehouse or doc.set_warehouse
@@ -345,15 +357,15 @@ def add_containers_before_save(doc,method):
     except Exception as e:
         frappe.log_error(f"Unexpected Error: {str(e)}")
         frappe.throw(f"Unexpected Error: {str(e)}")
-        
-        
+
+
 def update_dn_details_container(self, method):
     """
     Update delivery document details for containers in the container list.
 
     This method iterates over each item in the Delivery Note's item table.
     If the 'container_list' field is populated, it splits the container list into individual entities
-    and updates the corresponding Entity records with the Delivery Note's type and number.
+    and updates the corresponding Container records with the Delivery Note's type and number.
 
     Args:
         self: The Delivery Note document instance.

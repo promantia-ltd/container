@@ -3,9 +3,9 @@ from erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle impor
 from frappe import _, bold
 
 
+# override_doctype_class for Serial and Batch Bundle: allows bundles whose rows are per Container.
 class CustomSerialandBatchBundle(SerialandBatchBundle):
-	# TO make sure duplicate batch valiadtion will not happen as we will have
-	# the batch updated with each line along with container
+	# Container bundles repeat the same batch on each container row, so skip the duplicate-batch check
 	def validate_duplicate_serial_and_batch_no(self):
 		# Skip validation if custom_has_container is True
 		if self.custom_has_container:
@@ -15,7 +15,7 @@ class CustomSerialandBatchBundle(SerialandBatchBundle):
 		super().validate_duplicate_serial_and_batch_no()
 
 	def validate_serial_and_batch_no(self):
-
+		"""Standard validation, but also accepts items tracked only by Container."""
 		if self.item_code and not self.has_serial_no and not self.has_batch_no and not self.custom_has_container:
 			msg = f"The Item {self.item_code} does not have Serial No or Batch No or Container No"
 			frappe.throw(_(msg))
@@ -68,6 +68,7 @@ class CustomSerialandBatchBundle(SerialandBatchBundle):
 
 
 	def before_insert(self):
+		# Stamp each container with the batch it is booked against in this bundle
 		if self.has_batch_no:
 			for entry in self.entries:
 				if entry.custom_container:

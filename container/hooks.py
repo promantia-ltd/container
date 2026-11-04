@@ -1,18 +1,7 @@
-import erpnext.controllers.status_updater as _standard_updator
+from container.monkey_patches import apply as _apply_monkey_patches
 
-from container.api import StatusUpdaterCustom as _custom_updator
-
-from container import overrides as _custom_overrided_logic_override_file
-from erpnext.stock.serial_batch_bundle import SerialBatchCreation
-
-import erpnext.stock.doctype.purchase_receipt.purchase_receipt as pr_module
-from container.container.doctype.purchase_receipt.purchase_receipt import get_item_account_wise_additional_cost as custom_get_item_account_wise_additional_cost
-
-#For updating entities to the Serial and Batch Bundle entries
-SerialBatchCreation.set_serial_batch_entries = _custom_overrided_logic_override_file.set_serial_batch_entries
-
-# Properly override the function by patching the module
-pr_module.get_item_account_wise_additional_cost = custom_get_item_account_wise_additional_cost
+# ERPNext function replacements live in monkey_patches.py; also applied via before_request / before_job below
+_apply_monkey_patches()
 
 app_name = "container"
 app_title = "Container"
@@ -20,9 +9,6 @@ app_publisher = "Mohan"
 app_description = "Container For Procurement"
 app_email = "mohan.k@promantia.com"
 app_license = "mit"
-
-
-_standard_updator.StatusUpdater.limits_crossed_error = _custom_updator.limits_crossed_error
 
 before_migrate = ["container.overrides.add_conversion_factor_precision_field",
                   "container.overrides.set_conversion_factor_precision"]
@@ -302,12 +288,13 @@ override_doctype_dashboards = {
 
 # Request Events
 # ----------------
-# before_request = ["container.utils.before_request"]
+# hooks.py is not imported when hooks come from the Redis cache, so re-apply the ERPNext replacements
+before_request = ["container.monkey_patches.apply"]
 # after_request = ["container.utils.after_request"]
 
 # Job Events
 # ----------
-# before_job = ["container.utils.before_job"]
+before_job = ["container.monkey_patches.apply"]
 # after_job = ["container.utils.after_job"]
 
 # User Data Protection

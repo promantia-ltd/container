@@ -8,6 +8,7 @@ container_reconciliation_doc = "Container Reconciliation"
 
 @frappe.whitelist()
 def get_container_data(docname):
+    """Return (item_code, warehouse, newline-separated existing + new containers, qty_after_reconciliation)."""
     container_reco_doc = frappe.get_doc(container_reconciliation_doc, docname)
     item_code = container_reco_doc.item_code
     warehouse = container_reco_doc.warehouse
@@ -37,6 +38,7 @@ def get_container_data(docname):
 
 @frappe.whitelist()
 def on_submit(doc, method):
+    """Apply the linked Container Reconciliation: tag the SLE with containers, reset existing qtys, create new containers."""
     try:
         if doc.custom_container_reconciliation:
             container_reco_doc = frappe.get_doc(
@@ -46,9 +48,6 @@ def on_submit(doc, method):
             item_doc = frappe.get_doc("Item", container_reco_doc.item_code)
             sr_item_doc_name = ""
             container_nos = ""
-            container_reco_doc = frappe.get_doc(
-                container_reconciliation_doc, doc.custom_container_reconciliation
-            )
             new_containers = frappe.db.get_all(
                 "Container Reconciliation Items Add",
                 filters={
@@ -116,6 +115,8 @@ def on_submit(doc, method):
                 "Item", container_reco_doc.item_code, "container_number_series"
             )
             container_reco_doc.db_set("reconciliation_completed", 1)
+            # New container names were previewed from tabSeries (get_new_containers) without
+            # incrementing it, so advance the item's series by the number created here.
             frappe.db.sql(
                 "UPDATE `tabSeries` SET `current` = `current` + %s WHERE `name`=%s",
                 (

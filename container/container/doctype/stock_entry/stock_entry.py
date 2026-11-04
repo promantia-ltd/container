@@ -1,9 +1,8 @@
 import json
-from collections import defaultdict
 import datetime
 import frappe
-from frappe import _
-from frappe.utils import cint, comma_or, cstr, flt
+from frappe import get_doc, get_list, delete_doc, throw, msgprint
+from frappe.utils import flt
 from erpnext.stock.doctype.serial_no.serial_no import (
 	get_serial_nos
 )
@@ -16,22 +15,17 @@ class ContainersNotAssigned(Exception):
 class LessQtyInContainers(Exception):
 	pass
 
-import datetime
-
 work_order_doctype = "Work Order"
 material_request_doctype = "Material Request"
 container_doctype = "Container"
 
-# precision = frappe.db.get_single_value('Container Settings', 'container_precision')
-precision=4
-if not precision:
-    precision = 4
-else:
-     precision = int(precision)
+# Decimal places used when rounding container quantities throughout this module.
+precision = 4
 
 
 @frappe.whitelist()
 def get_container_no(item, warehouse, t_warehouse, qty, container_used, uom, work_order):
+	"""Pick containers for a transfer row: first those already at the target warehouse, then from the source."""
 	container_used = json.loads(container_used)
 	used = [each for val in container_used for each in val] if container_used else []
 
@@ -110,6 +104,7 @@ def get_conversion_factor(item, uom):
 	return frappe.db.get_value("UOM Conversion Detail", {'parenttype':'Item','parent':item,'uom':uom}, "conversion_factor")
 
 def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_containers):
+	"""Greedily take containers (FIFO) until the required qty is covered; returns (details_dict, qty_still_required)."""
 	container_no,primary_available_qty,primary_available_qty_used = [],[],[]
 	remaining_qty =" "
 	
@@ -126,6 +121,7 @@ def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_contain
 
 			elif available_qty >= required_qty_in_primary_uom:
 				container_no.append(data.name)
+				# remaining_qty format is "<container>:<qty left after this pick>"
 				remaining_qty=str(data.name) + ":" + str(flt(available_qty-required_qty_in_primary_uom,4))
 				primary_available_qty.append(available_qty)
 				primary_available_qty_used.append(flt(required_qty_in_primary_uom,4))
@@ -146,6 +142,7 @@ def pick_container(query,required_qty_in_primary_uom,used,minimal_expiry_contain
 	return all_dict, required_qty_in_primary_uom
 
 def get_containers(item, warehouse, ignore_scrap_qty=0):
+	"""Active containers of an item in a warehouse; returns [] if the query fails."""
 	try:
 		if ignore_scrap_qty:
 			#ignore 0.1 kg of container
@@ -174,9 +171,11 @@ def get_containers(item, warehouse, ignore_scrap_qty=0):
 	return query
 
 def get_minimal_expiry_containers(item, query):
+    """Names of containers expiring sooner than the Item Group's min_days; these must not be picked."""
     containers_with_minimal_expiry = []
     item_doc = frappe.get_doc("Item", item)
     minimal_days = frappe.db.get_value("Item Group", item_doc.item_group, "min_days")
+    # FIXME: raises TypeError on `days < minimal_days` when Item Group.min_days is not set (None).
 
     for date in query:
         if date.expiry_date:
@@ -192,6 +191,7 @@ def get_days_diff(date):
     return diff.days
 
 def reserve_once(item_doc, work_order):
+    """Containers of the item already reserved (is_reserved=1) for a different Work Order."""
     reserved_containers = []
     
     if item_doc:
@@ -215,6 +215,7 @@ def used_containers(container_used):
 
 @frappe.whitelist()
 def get_item_container_no(item, warehouse, qty, work_order, container_used, uom):
+	"""Pick the containers already reserved for the Work Order in a warehouse to consume in a Manufacture entry."""
 	if isinstance(container_used, str):
 		container_used = json.loads(container_used)
 		
@@ -241,7 +242,6 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 					ORDER BY c.creation
 				""", (item, warehouse, work_order), as_dict=True
 				)
-				print("has_partially_reserved", query)
 
 			else:
 				query = frappe.db.sql("""
@@ -299,6 +299,7 @@ def get_item_container_no(item, warehouse, qty, work_order, container_used, uom)
 
 
 def before_submit(doc, method):
+    """Stock Entry before_submit: for Manufacture, ensure raw material rows have containers with enough qty."""
     try:
 		#check if assigned containers have sufficient qty
         if doc.stock_entry_type == "Manufacture":
@@ -321,9 +322,8 @@ def before_submit(doc, method):
         frappe.throw(str(e))
 
 
-from frappe import throw
-
 def set_containers_status(doc, method):
+	"""Stock Entry on_submit: reserve containers for the Work Order (transfer) or consume them (Manufacture)."""
 	# update details in assigned container document
 	comment = "<b>Stock Reserved Successfully</b><br>Assigned Containers:<br>"
 	reserve_qty_str = ""
@@ -334,6 +334,7 @@ def set_containers_status(doc, method):
 			item_doc = frappe.get_doc("Item", item.item_code)
 
 			if item_doc.is_containerized == 1:
+				# FIXME: here and in similar messages below, `+ item.idx` concatenates str and int and raises TypeError instead of throwing.
 				try:
 					qty_assigned = item.available_qty_use.split(",")
 				except Exception as e:
@@ -345,12 +346,12 @@ def set_containers_status(doc, method):
 					stock_detail_doc = frappe.db.get_value('Stock Details', {'parent': container_doc.name, 'work_order': doc.work_order}, 'name')
 
 					container_doc.db_set('warehouse', item.t_warehouse)
-					# container_doc.save(ignore_permissions=True)
 
 					try:
 						if stock_detail_doc:
 							stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_doc)
 							if has_partially_reserved:
+								# FIXME: precedence bug - parses as `reserved_qty or (0 + qty)`, so the newly assigned qty is not added to an existing reservation.
 								reserved_qty = stock_detail_doc.reserved_qty or 0 + flt(qty_assigned[index], precision)
 								stock_detail_doc.db_set('reserved_qty', reserved_qty)
 								used_qty=container_doc.primary_available_qty - reserved_qty
@@ -391,6 +392,7 @@ def set_containers_status(doc, method):
 					comment += f"{item.t_warehouse} : <a href='/app/container/{container_doc.name}'>{container_doc.name}</a>" + str(reserve_qty_str) + "<br>"
 					frappe.db.commit()
 
+				# FIXME: once_reserved is only set in memory (on_submit, no db_set), so it is never persisted.
 				doc.once_reserved = 1
 		# reserved items are the ones which are present at the location and not required to be transfered
 		for item in doc.reserved_items:
@@ -408,12 +410,12 @@ def set_containers_status(doc, method):
 					stock_detail_doc = frappe.db.get_value('Stock Details', {'parent': container_doc.name, 'work_order': doc.work_order}, 'name')
 
 					container_doc.db_set('warehouse', item.t_warehouse)
-					# container_doc.save(ignore_permissions=True)
 
 					try:
 						if stock_detail_doc:
 							stock_detail_doc = frappe.get_doc("Stock Details", stock_detail_doc)
 							if has_partially_reserved:
+								# FIXME: precedence bug - parses as `reserved_qty or (0 + qty)`, so the newly assigned qty is not added to an existing reservation.
 								reserved_qty = stock_detail_doc.reserved_qty or 0 + flt(qty_assigned[index], precision)
 								stock_detail_doc.db_set('reserved_qty', reserved_qty)
 								primary_available = container_doc.primary_available_qty - reserved_qty
@@ -581,6 +583,7 @@ def set_containers_status(doc, method):
 
 
 def validate(doc,method):
+	"""Stock Entry validate: assign pick-list containers, check container warehouses/reservations and set row qty from containers."""
 	try:
 		add_containers_before_save_pl(doc)
 		if doc.stock_entry_type=="Material Transfer for Manufacture" or (doc.stock_entry_type=="Material Transfer" and not doc.pick_list):
@@ -591,7 +594,7 @@ def validate(doc,method):
 					if not containers:
 						raise ContainersNotAssigned('Please set appropriate container for item at row '+str(item.idx))
 					elif containers[-1] in [","]:
-						#last comma should not consider
+						# containers is comma-separated with a trailing comma
 						containers=containers[:-1]
 					containers=containers.split(",")
 					for cont in containers:
@@ -628,10 +631,8 @@ def validate(doc,method):
 	
 	
 
-
-from frappe import get_doc, get_list, delete_doc, throw, msgprint
-
 def on_cancel(doc, method):
+	"""Stock Entry on_cancel: release container reservations / revert consumption and refresh the Work Order."""
 	comment = ""
 	# remove all the reservations from containers for transfer documents and consumed qty from Manufacture documents
 	try:
@@ -673,6 +674,7 @@ def on_cancel(doc, method):
 											frappe.throw('This container is reserved for some other Work Order. Either unreserve or cancel the other Work Order')
 											frappe.db.rollback()
 
+										# FIXME: adds back the full reserved_qty, not just the portion cancelled (qty_assigned[index]).
 										primary_available_qty = container_doc.primary_available_qty + flt(stock_detail_doc.reserved_qty, precision)
 										container_doc.db_set('primary_available_qty', primary_available_qty)
 										if primary_available_qty > 0.1:
@@ -729,6 +731,7 @@ def on_cancel(doc, method):
 											frappe.throw('This container is reserved for some other Work Order. Either unreserve or cancel the other Work Order')
 											frappe.db.rollback()
 
+										# FIXME: adds back the full reserved_qty, not just the portion cancelled (qty_assigned[index]).
 										primary_available_qty = container_doc.primary_available_qty + flt(stock_detail_doc.reserved_qty, precision)
 										container_doc.db_set('primary_available_qty', primary_available_qty)
 										stock_detail_doc.db_set('reserved_qty',reserved_qty)
@@ -829,6 +832,7 @@ def on_cancel(doc, method):
 
 			for container_no in container_nos:
 				container_no_doc = get_doc(container_doctype, container_no)
+				# FIXME: `item` is the leftover loop variable, so every container gets the last row's s_warehouse.
 				container_no_doc.db_set('warehouse', item.s_warehouse)
 				frappe.db.commit()
 		#update Work Orders with the reserved and consumed container data
@@ -843,6 +847,7 @@ def on_cancel(doc, method):
 	
 
 def get_uom_conversion(item):
+	"""Return (secondary, primary) UOM conversion factors of the row's item; throws if either is missing."""
 	secondary_uom_list=frappe.db.get_all("UOM Conversion Detail",filters={'parenttype':'Item','parent':item.item_code,'uom_type':'Secondary UOM'},fields={'*'})
 	if secondary_uom_list:
 		secondary_uom_conversion=secondary_uom_list[0]['conversion_factor']
@@ -860,6 +865,7 @@ def get_uom_conversion(item):
 
 @frappe.whitelist()
 def get_target_warehouses(operation,work_order,warehouse_list,wip_warehouse,item=None):
+	"""Next free workstation input source for machine-loaded items, else the WIP warehouse."""
 	operation_list=frappe.db.get_all("Work Order Operation",filters={'parenttype':'Work Order','parent':work_order,'operation':operation},fields={'workstation'})
 	if not operation_list:
 		return wip_warehouse
@@ -960,11 +966,14 @@ def get_transfer_item_required_qty(work_order, item_code):
 				})
 	return result
 
+# Imported here rather than at the top: work_order.py imports reserve_once from this
+# module, so a top-level import would be circular.
 from container.container.doctype.work_order.work_order import update_reserved_containers,delete_reserved_containers
 
 
 
 def after_submit(doc,method):
+	"""Stock Entry on_submit: move containers, refresh Work Order container tables and stamp containers on the SLEs."""
 	if doc.stock_entry_type=="Material Receipt":
 		container_no_list=frappe.db.get_list(container_doctype,filters={'purchase_document_type':doc.doctype,'purchase_document_no': doc.name},fields={'*'})
 		for no in container_no_list:
@@ -992,6 +1001,7 @@ def after_submit(doc,method):
 
 @frappe.whitelist()
 def change_containers(selected_containers,item):
+	"""Replace a row's containers with the user's selection; saves saved rows directly, else returns the data."""
 	selected_containers=json.loads(selected_containers)
 	item=json.loads(item)
 	qty_check=0
@@ -1016,14 +1026,13 @@ def change_containers(selected_containers,item):
 			frappe.db.set_value("Stock Entry Detail",item['name'],"available_qty_use",get_data[0][2])
 			frappe.db.set_value("Stock Entry Detail",item['name'],"remaining_qty",get_data[1])
 			frappe.db.set_value("Stock Entry Detail",item['name'],"qty",transferred_qty)
-			#currently this is not needed my be in future it is usefull
-			# update_container_table(get_data,item)
 		else:
 			get_data=list(get_data)
 			get_data.append(transferred_qty)
 			return get_data
 @frappe.whitelist()        
 def get_container_data(selected_containers,qty):
+	"""Allocate qty across the selected containers in order; returns (strings, remaining_qty, available qtys)."""
 	primary_available_qty=[]
 	primary_available_qty_used=[]
 	containers=[]
@@ -1041,10 +1050,12 @@ def get_container_data(selected_containers,qty):
 			remaining_qty=str(container)+":"+str(flt(container_doc.primary_available_qty-required_qty,2))
 			containers.append(container)
 			break
+	# FIXME: remaining_qty is unbound (UnboundLocalError) if the selected containers never cover qty.
 	convert_data=convert_container_data_to_str(primary_available_qty,primary_available_qty_used,containers)
 	return convert_data,remaining_qty,primary_available_qty
 
 def convert_container_data_to_str(primary_available_qty,primary_available_qty_used,containers):
+	"""Join the three parallel lists into comma-separated strings (no trailing comma)."""
 	container_list,available_qty,available_qty_used="","",""
 	for container in range(len(containers)):
 		if containers[-1]!=containers[container]:
@@ -1057,15 +1068,9 @@ def convert_container_data_to_str(primary_available_qty,primary_available_qty_us
 			available_qty_used+=str(primary_available_qty_used[container])
 	return container_list,available_qty,available_qty_used
 
-# this Code is commented it may be useful in future
-# def update_container_table(get_data,item):
-#     containers_doc=frappe.get_doc("Container Info",{"parent":item['parent'],"input_sources":item["s_warehouse"],"item_code":item["item_code"]})
-#     containers_doc.db_set("containers",get_data[0][0])
-#     containers_doc.db_set("input_sources",item['t_warehouse'])
-#     frappe.db.commit()
-
 @frappe.whitelist()  
 def assign_containers(item,used,work_order=None):
+	"""Auto-assign containers from the row's source warehouse for the row qty."""
 	container_no,primary_available_qty,primary_available_qty_used=[],[],[]
 	remaining_qty=""
 	query=None
@@ -1077,6 +1082,7 @@ def assign_containers(item,used,work_order=None):
 		required_qty=item['qty']
 		minimal_expiry_containers=get_minimal_expiry_containers(item["item_code"],query)
 		if query:
+			# FIXME: pick_container returns a 2-tuple (dict, qty), so this 4-way unpack raises ValueError.
 			container_no,primary_available_qty,primary_available_qty_used,remaining_qty=pick_container(query,required_qty,used,minimal_expiry_containers)
 			transferred_qty=sum([i for i in primary_available_qty]) 
 			return container_no,primary_available_qty,remaining_qty,primary_available_qty_used,transferred_qty
@@ -1085,6 +1091,7 @@ def assign_containers(item,used,work_order=None):
 
 @frappe.whitelist()  
 def slit_container_and_unreserve_container(self):
+	"""After a Manufacture (non partial-reservation mode): unreserve containers once the WO is complete and slit leftovers."""
 	has_partially_reserved = partially_reserved()
 
 	if not has_partially_reserved:
@@ -1108,7 +1115,7 @@ def slit_container_and_unreserve_container(self):
 		
 @frappe.whitelist()
 def change_container_qty(data,item_name):
-	# called from js to change the qty in Container
+	"""Apply user-edited per-container qtys to a row; saves saved rows directly, else returns the new values."""
 	data=json.loads(data)
 	available_qty_use=""
 	changed_qty=0
@@ -1133,6 +1140,7 @@ def change_container_qty(data,item_name):
 
 @frappe.whitelist()
 def slit_container(self):
+	"""Move qty left in partly used containers to a new sub container and mark fully used ones as Used."""
 	try:
 		for item in self['items']:
 			item_doc=frappe.get_doc("Item",item['item_code'])
@@ -1140,12 +1148,10 @@ def slit_container(self):
 				qty_rem_containers=get_remaining_qty_left_in_container(item)
 				all_containers=item['containers']
 				if all_containers[-1] in [","]:
-				#last comma should not consider
+					# containers is comma-separated with a trailing comma
 					all_containers=all_containers[:-1]
 				all_containers=all_containers.split(",")
 				for cont in all_containers:
-					"""all the containers are completely utilized
-					change the status as used """
 					if cont in qty_rem_containers and qty_rem_containers[cont]>0:
 						container_doc=frappe.get_doc("Container",cont)
 						if are_floats_equal(qty_rem_containers[cont], container_doc.primary_available_qty) and container_doc.primary_available_qty>0:
@@ -1172,6 +1178,7 @@ def slit_container(self):
 		frappe.log_error("An error occurred while slitting of container: {}".format(str(e)))
 
 def get_remaining_qty_left_in_container(item):
+	"""Parse the row's remaining_qty string "cont1:qty,cont2:qty," into {container: qty}."""
 	rem_container={}
 	containers=item["remaining_qty"]
 	if containers:
@@ -1188,6 +1195,7 @@ def get_remaining_qty_left_in_container(item):
 	return rem_container
 
 def create_sub_containers(self,parent_container):
+	"""Create one sub container holding the parent's available qty; returns (comment_html, sub_container_name)."""
 	comment=""
 	slitted_container=''
 	parent_container_doc=frappe.get_doc("Container",parent_container)
@@ -1241,6 +1249,7 @@ def create_sub_containers(self,parent_container):
 
 
 def copy_aging_history(self,parent_container_doc,container_doc):
+	"""Copy the parent's latest Aging History row onto the new sub container."""
 	prev_trans_details=None
 	prev_trans_name=frappe.get_all('Aging History', filters={'parent': parent_container_doc.name}, order_by='idx DESC', limit=1)
 	if prev_trans_name:
@@ -1264,6 +1273,7 @@ def copy_aging_history(self,parent_container_doc,container_doc):
 	return container_doc
 
 def update_sle(self):
+	"""Stamp the container numbers on each containerized row's Stock Ledger Entry."""
 	try:
 		for item in self.items:
 			item_doc=frappe.get_doc("Item",item.item_code)
@@ -1288,6 +1298,7 @@ def update_sle(self):
 		frappe.log_error("An error occurred: {}".format(str(e)))
 
 def update_sle_for_raw(item):
+	"""Copy the row's containers (trailing comma stripped) to its Stock Ledger Entry."""
 	containers=None
 	sle=frappe.get_doc("Stock Ledger Entry",{"voucher_no":item.parent,"item_code":item.item_code,"voucher_detail_no":item.name})
 	if item.containers and item.containers[-1]==",":
@@ -1299,6 +1310,7 @@ def update_sle_for_raw(item):
 
 @frappe.whitelist()
 def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None,item_code=None,return_container=None):
+    """Unreserved containers with stock at the workstation's input sources, as rows for a return/scrap entry."""
     warehouse_stock=[]
     warehouse_list=frappe.db.get_all("Input Sources",filters={'parenttype':'Workstation','parent':workstation},fields={'w_name'})
     for warehouse in warehouse_list:
@@ -1334,6 +1346,7 @@ def fetch_stock_transfer_records(workstation,transfer_type,return_warehouse=None
 
 @frappe.whitelist()
 def fetch_return_source_warehouse(doctype, txt, searchfield, start, page_len, filters):
+    """Link-field query: input source warehouses of the selected workstation."""
     if 'workstation' in filters:
         parent_warehouse = filters['workstation']
         return frappe.db.sql("""
@@ -1348,6 +1361,7 @@ def fetch_return_source_warehouse(doctype, txt, searchfield, start, page_len, fi
 
 @frappe.whitelist()
 def fetch_item_code(doctype, txt, searchfield, start, page_len, filters):
+	"""Link-field query: containerized items in stock at the selected workstation's input sources."""
 	if 'workstation' in filters:
 		parent_warehouse = filters['workstation']
 		test= frappe.db.sql("""
@@ -1367,6 +1381,7 @@ def fetch_item_code(doctype, txt, searchfield, start, page_len, filters):
 
 @frappe.whitelist()
 def fetch_container(doctype, txt, searchfield, start, page_len, filters):
+	"""Link-field query: containers with stock at the selected workstation's input sources."""
 	if 'workstation' in filters:
 		parent_warehouse = filters['workstation']
 		return frappe.db.sql("""
@@ -1390,6 +1405,7 @@ def are_floats_equal(value1, value2, tolerance=1e-3):
 
 @frappe.whitelist()
 def partially_reserved():
+	"""Container Settings.has_partially_reserved (qty-based reservation mode); defaults to 1 if unreadable."""
 	try:
 		return frappe.db.get_single_value('Container Settings', 'has_partially_reserved')
 	except Exception as e:
@@ -1397,10 +1413,12 @@ def partially_reserved():
 	
 @frappe.whitelist()
 def support_continuous_item_mapping():
+	"""Feature flag queried by the client scripts; always enabled."""
 	return True
 
 
 def add_containers_before_save_pl(doc):
+	"""For entries made from a Pick List, auto-fill each containerized row's containers (FIFO) to cover transfer_qty."""
 	if doc.pick_list:
 		try:
 			for item in doc.items:

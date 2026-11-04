@@ -2,6 +2,7 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on('Slit Containers', {
+	// Limit the row's container to unreserved containers of the row item
 	refresh:function(frm,cdt,cdn){
 		frm.set_query("container", "slitted_containers_details", function(frm, cdt, cdn) {
 			let d=locals[cdt][cdn]
@@ -13,6 +14,7 @@ frappe.ui.form.on('Slit Containers', {
 				};
 		});
 	},
+	// Reset the details table to one row for the newly selected item
 	item_code:function(frm){
 		frm.clear_table("slitted_containers_details");
 		let child=frm.add_child("slitted_containers_details");
@@ -22,10 +24,12 @@ frappe.ui.form.on('Slit Containers', {
 
 })
 frappe.ui.form.on('Slitted Containers Details', {
+	// "Slit Container" row button: open the per-sub-container qty dialog
 	slit_container:function(frm,cdt,cdn){
 		set_slit_container_qty(frm,cdt,cdn)
 	}
 });
+// Preview sub-container names, let the user split the qty among them and store it as qty_for_each_container
 function set_slit_container_qty(frm,cdt,cdn){
 	if (frm.doc.docstatus==0){
 	let data=locals[cdt][cdn]
